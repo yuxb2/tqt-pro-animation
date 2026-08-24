@@ -8,6 +8,16 @@ on:
 permissions:
   contents: write
 
+env:
+  # LilyGo T-QT Pro: ESP32-S3 with 4 MB of flash and 2 MB of QSPI PSRAM.
+  # These options must stay identical to the Arduino IDE settings used for the
+  # USB flash. A firmware built for 16 MB boot-loops on this board and the
+  # screen stays black.
+  FQBN: esp32:esp32:esp32s3:FlashSize=4M,PartitionScheme=min_spiffs,PSRAM=enabled
+  # min_spiffs: app0 and app1 are 0x1E0000 bytes each.
+  APP_PARTITION_BYTES: 1966080
+  REPO_RAW: https://raw.githubusercontent.com/yuxb2/tqt-pro-animation
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
@@ -18,19 +28,32 @@ jobs:
 
       - uses: arduino/setup-arduino-cli@v2
 
-      - name: Install board core and libraries
+      - name: Install the ESP32 core
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.14
-          arduino-cli lib install "OneButton@2.6.1"
-          git clone --depth 1 https://github.com/Xinyuan-LilyGO/T-QT.git /tmp/lilygo-tqt
+
+      - name: Check the display configuration
+        # TFT_eSPI and OneButton are vendored in libraries/ so that GitHub builds
+        # the same display driver as the Arduino IDE does. The stock TFT_eSPI
+        # release drives an ILI9341 on ESP8266 pins and shows a black screen.
+        run: |
+          SELECT=libraries/TFT_eSPI/User_Setup_Select.h
+          if ! grep -q '^#include <User_Setups/Setup211_LilyGo_T_QT_Pro_S3.h>' "$SELECT"; then
+            echo "::error::libraries/TFT_eSPI is not configured for the T-QT Pro (Setup211)."
+            exit 1
+          fi
 
       - name: Create private Wi-Fi configuration
         env:
           WIFI_SSID: ${{ secrets.OTA_WIFI_SSID }}
           WIFI_PASSWORD: ${{ secrets.OTA_WIFI_PASSWORD }}
         run: |
-          test -n "$WIFI_SSID" && test -n "$WIFI_PASSWORD"
+          if [ -z "$WIFI_SSID" ] || [ -z "$WIFI_PASSWORD" ]; then
+            echo "::error::Missing repository secrets OTA_WIFI_SSID and OTA_WIFI_PASSWORD."
+            echo "Without them the published firmware has no Wi-Fi and can never update itself again."
+            exit 1
+          fi
           SSID_ESCAPED=$(printf '%s' "$WIFI_SSID" | sed 's/\\/\\\\/g; s/"/\\"/g')
           PASSWORD_ESCAPED=$(printf '%s' "$WIFI_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g')
           printf '#pragma once\n#define OTA_WIFI_SSID "%s"\n#define OTA_WIFI_PASSWORD "%s"\n' "$SSID_ESCAPED" "$PASSWORD_ESCAPED" > CyberCycle/secrets.h
@@ -39,23 +62,37 @@ jobs:
         run: |
           VERSION_NO_V="${VERSION#v}"
           sed -i -E "s|^#define FW_VERSION \".*\"|#define FW_VERSION \"${VERSION_NO_V}\"|" CyberCycle/CyberCycle.ino
+          if ! grep -q "^#define FW_VERSION \"${VERSION_NO_V}\"$" CyberCycle/CyberCycle.ino; then
+            echo "::error::FW_VERSION was not stamped with ${VERSION_NO_V}."
+            exit 1
+          fi
           arduino-cli compile \
-            --fqbn esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB \
-            --libraries /tmp/lilygo-tqt/lib \
+            --fqbn "$FQBN" \
+            --libraries libraries \
             --output-dir build \
             CyberCycle
+          SIZE=$(stat -c%s build/CyberCycle.ino.bin)
+          echo "firmware size: ${SIZE} bytes"
+          if [ "$SIZE" -ge "$APP_PARTITION_BYTES" ]; then
+            echo "::error::Firmware is ${SIZE} bytes and does not fit the ${APP_PARTITION_BYTES}-byte OTA partition."
+            exit 1
+          fi
 
       - name: Publish the stable OTA channel
+        # The two files sit at the root of the firmware branch: the raw.github
+        # URLs the T-QT asks for are <repo>/firmware/<file>, where "firmware" is
+        # the branch name, not a folder.
         run: |
           VERSION_NO_V="${VERSION#v}"
+          cp build/CyberCycle.ino.bin /tmp/CyberCycle.bin
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan firmware
-          git rm -rf .
-          mkdir -p firmware
-          cp build/CyberCycle.ino.bin firmware/CyberCycle.bin
-          printf 'version=%s\nurl=https://raw.githubusercontent.com/yuxb2/tqt-pro-animation/firmware/CyberCycle.bin\n' "$VERSION_NO_V" > firmware/ota-manifest.txt
-          git add firmware
+          git rm -rf --quiet .
+          cp /tmp/CyberCycle.bin CyberCycle.bin
+          printf 'version=%s\nurl=%s/firmware/CyberCycle.bin\n' "$VERSION_NO_V" "$REPO_RAW" > ota-manifest.txt
+          cat ota-manifest.txt
+          git add CyberCycle.bin ota-manifest.txt
           git commit -m "OTA firmware $VERSION_NO_V"
           git push --force origin firmware
 
