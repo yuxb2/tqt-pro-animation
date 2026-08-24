@@ -30,8 +30,8 @@ jobs:
           WIFI_PASSWORD: ${{ secrets.OTA_WIFI_PASSWORD }}
         run: |
           test -n "$WIFI_SSID" && test -n "$WIFI_PASSWORD"
-          SSID_ESCAPED=$(printf '%s' "$WIFI_SSID" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
-          PASSWORD_ESCAPED=$(printf '%s' "$WIFI_PASSWORD" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+          SSID_ESCAPED=$(printf '%s' "$WIFI_SSID" | sed 's/\\/\\\\/g; s/"/\\"/g')
+          PASSWORD_ESCAPED=$(printf '%s' "$WIFI_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g')
           printf '#pragma once\n#define OTA_WIFI_SSID "%s"\n#define OTA_WIFI_PASSWORD "%s"\n' "$SSID_ESCAPED" "$PASSWORD_ESCAPED" > CyberCycle/secrets.h
 
       - name: Build the tagged version
