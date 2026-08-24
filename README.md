@@ -121,8 +121,14 @@ Dans l'ordre :
 ## 8. Vérifier ce qui tourne réellement sur la carte
 
 ```bash
+ls /dev/cu.usbmodem*
 esptool.py --port /dev/cu.usbmodem1301 flash_id
 ```
 
 `Detected flash size` doit afficher **4MB**. C'est ce chiffre qui commande le
 réglage Flash Size du §1.
+
+Attention : deux cartes ESP32-S3 sont branchées sur le Mac. Celle de 4 Mo est le
+T-QT Pro ; l'autre en affiche 16 Mo et n'a rien à voir avec ce projet. Le numéro
+de port change d'un branchement à l'autre, donc vérifie toujours la taille de
+flash avant de téléverser.
