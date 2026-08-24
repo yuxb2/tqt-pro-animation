@@ -1,5 +1,7 @@
 # T-QT Pro animations
 
+Repository: https://github.com/yuxb2/tqt-pro-animation
+
 ## OTA updates
 
 1. Copy `CyberCycle/secrets.example.h` to `CyberCycle/secrets.h` and enter the

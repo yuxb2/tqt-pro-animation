@@ -22,7 +22,8 @@ jobs:
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.14
-          arduino-cli lib install "TFT_eSPI@2.5.43" "OneButton@2.6.1"
+          arduino-cli lib install "OneButton@2.6.1"
+          git clone --depth 1 https://github.com/Xinyuan-LilyGO/T-QT.git /tmp/lilygo-tqt
 
       - name: Create private Wi-Fi configuration
         env:
@@ -40,6 +41,7 @@ jobs:
           sed -i -E "s|^#define FW_VERSION \".*\"|#define FW_VERSION \"${VERSION_NO_V}\"|" CyberCycle/CyberCycle.ino
           arduino-cli compile \
             --fqbn esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB \
+            --libraries /tmp/lilygo-tqt/lib \
             --output-dir build \
             CyberCycle
 
