@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/yurimuin/Library/Arduino15/packages/esp32/hardware/esp32/**)",
+      "Read(//Users/yurimuin/Documents/Arduino/**)"
+    ]
+  }
+}
