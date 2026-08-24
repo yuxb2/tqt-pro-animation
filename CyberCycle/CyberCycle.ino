@@ -31,8 +31,21 @@
 
 #include <TFT_eSPI.h>
 #include <SPI.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <time.h>
 #include "OneButton.h"
 #include "pb_map.h"
+
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#else
+  // Copy secrets.example.h to secrets.h and enter the Wi-Fi details there.
+  #define OTA_WIFI_SSID ""
+  #define OTA_WIFI_PASSWORD ""
+#endif
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -68,6 +81,51 @@ unsigned long animStart = 0;
 unsigned long lastFrameTime = 0;
 float animTime = 0;                        // seconds since this animation began
 
+// ===================================================================
+// OTA — GitHub-hosted firmware
+// ===================================================================
+// The GitHub Action replaces this value with the release tag before building.
+#define FW_VERSION "0.0.0"
+#define OTA_MANIFEST_URL "https://raw.githubusercontent.com/yuxb2/tqt-pro-animation/firmware/ota-manifest.txt"
+#define OTA_CHECK_INTERVAL_MS (24UL * 60UL * 60UL * 1000UL)
+#define OTA_WIFI_TIMEOUT_MS 12000UL
+
+// ISRG Root X1, the root CA used by raw.githubusercontent.com at the time
+// this firmware was configured. HTTPS is verified; do not use setInsecure().
+static const char OTA_ROOT_CA[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----
+)EOF";
+
 // --- shared helpers -----------------------------------------------------
 
 static inline void px(int x, int y, uint16_t c) {
@@ -85,6 +143,104 @@ static inline uint16_t scale565(uint16_t c, float k) {
   return rgbf(((c >> 11) & 0x1F) / 31.0f * k,
               ((c >> 5) & 0x3F) / 63.0f * k,
               (c & 0x1F) / 31.0f * k);
+}
+
+// --- OTA helpers -------------------------------------------------------
+
+static unsigned long otaNextCheck = 15000UL;  // let the animation start first
+
+static int otaVersionPart(const String &s, int &at) {
+  int value = 0;
+  while (at < s.length() && (s[at] < '0' || s[at] > '9')) at++;
+  while (at < s.length() && s[at] >= '0' && s[at] <= '9') value = value * 10 + (s[at++] - '0');
+  while (at < s.length() && s[at] != '.') at++;
+  if (at < s.length()) at++;
+  return value;
+}
+
+// Returns true only when available is a strictly newer semantic version.
+static bool otaIsNewer(const String &available, const String &current) {
+  int a = 0, c = 0;
+  for (int i = 0; i < 3; i++) {
+    int av = otaVersionPart(available, a), cv = otaVersionPart(current, c);
+    if (av != cv) return av > cv;
+  }
+  return false;
+}
+
+static String otaManifestValue(const String &manifest, const char *key) {
+  String prefix = String(key) + "=";
+  int start = manifest.indexOf(prefix);
+  if (start < 0) return String();
+  start += prefix.length();
+  int end = manifest.indexOf('\n', start);
+  if (end < 0) end = manifest.length();
+  String value = manifest.substring(start, end);
+  value.trim();
+  return value;
+}
+
+static bool otaSyncClock() {
+  configTime(0, 0, "time.cloudflare.com", "pool.ntp.org");
+  unsigned long started = millis();
+  while (time(nullptr) < 1700000000 && millis() - started < 8000UL) delay(100);
+  return time(nullptr) >= 1700000000;
+}
+
+static void otaCheckForUpdate() {
+  if (OTA_WIFI_SSID[0] == '\0') return;   // secrets.h has not been configured yet
+
+  Serial.println("OTA: Wi-Fi connection...");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(OTA_WIFI_SSID, OTA_WIFI_PASSWORD);
+  unsigned long started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < OTA_WIFI_TIMEOUT_MS) delay(250);
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("OTA: Wi-Fi unavailable");
+    WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+    return;
+  }
+  if (!otaSyncClock()) {
+    Serial.println("OTA: clock sync failed");
+    WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+    return;
+  }
+
+  WiFiClientSecure manifestClient;
+  manifestClient.setCACert(OTA_ROOT_CA);
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  if (!http.begin(manifestClient, OTA_MANIFEST_URL)) {
+    Serial.println("OTA: manifest connection failed");
+    WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+    return;
+  }
+  int status = http.GET();
+  String manifest = (status == HTTP_CODE_OK) ? http.getString() : String();
+  http.end();
+
+  String version = otaManifestValue(manifest, "version");
+  String url = otaManifestValue(manifest, "url");
+  if (version.length() == 0 || url.length() == 0 || !otaIsNewer(version, FW_VERSION)) {
+    Serial.printf("OTA: already current (%s)\n", FW_VERSION);
+    WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+    return;
+  }
+
+  Serial.printf("OTA: %s -> %s\n", FW_VERSION, version.c_str());
+  WiFiClientSecure firmwareClient;
+  firmwareClient.setCACert(OTA_ROOT_CA);
+  httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  t_httpUpdate_return result = httpUpdate.update(firmwareClient, url, FW_VERSION);
+  if (result == HTTP_UPDATE_FAILED)
+    Serial.printf("OTA failed (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+  WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+}
+
+static void otaTick() {
+  if ((long)(millis() - otaNextCheck) < 0) return;
+  otaNextCheck = millis() + OTA_CHECK_INTERVAL_MS;
+  otaCheckForUpdate();
 }
 
 static void line(float x0, float y0, float x1, float y1, uint16_t c) {
@@ -1706,6 +1862,7 @@ void loop() {
 
   btnLeft.tick();
   btnRight.tick();
+  otaTick();
 
   switch (viewOrder[slot]) {
     case 0: animMorph(dt);         break;

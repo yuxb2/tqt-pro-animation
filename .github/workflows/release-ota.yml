@@ -1,0 +1,55 @@
+name: Build OTA firmware
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install board core and libraries
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@2.0.14
+          arduino-cli lib install "TFT_eSPI@2.5.43" "OneButton@2.6.1"
+
+      - name: Build the tagged version
+        run: |
+          VERSION_NO_V="${VERSION#v}"
+          sed -i -E "s|^#define FW_VERSION \".*\"|#define FW_VERSION \"${VERSION_NO_V}\"|" CyberCycle/CyberCycle.ino
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB \
+            --output-dir build \
+            CyberCycle
+
+      - name: Publish the stable OTA channel
+        run: |
+          VERSION_NO_V="${VERSION#v}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan firmware
+          git rm -rf .
+          mkdir -p firmware
+          cp build/CyberCycle.ino.bin firmware/CyberCycle.bin
+          printf 'version=%s\nurl=https://raw.githubusercontent.com/yuxb2/tqt-pro-animation/firmware/CyberCycle.bin\n' "$VERSION_NO_V" > firmware/ota-manifest.txt
+          git add firmware
+          git commit -m "OTA firmware $VERSION_NO_V"
+          git push --force origin firmware
+
+      - name: Create the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CyberCycle ${{ github.ref_name }}
+          generate_release_notes: true
+          files: build/CyberCycle.ino.bin
