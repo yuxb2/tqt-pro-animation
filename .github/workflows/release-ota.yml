@@ -24,6 +24,16 @@ jobs:
           arduino-cli core install esp32:esp32@2.0.14
           arduino-cli lib install "TFT_eSPI@2.5.43" "OneButton@2.6.1"
 
+      - name: Create private Wi-Fi configuration
+        env:
+          WIFI_SSID: ${{ secrets.OTA_WIFI_SSID }}
+          WIFI_PASSWORD: ${{ secrets.OTA_WIFI_PASSWORD }}
+        run: |
+          test -n "$WIFI_SSID" && test -n "$WIFI_PASSWORD"
+          SSID_ESCAPED=$(printf '%s' "$WIFI_SSID" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+          PASSWORD_ESCAPED=$(printf '%s' "$WIFI_PASSWORD" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+          printf '#pragma once\n#define OTA_WIFI_SSID "%s"\n#define OTA_WIFI_PASSWORD "%s"\n' "$SSID_ESCAPED" "$PASSWORD_ESCAPED" > CyberCycle/secrets.h
+
       - name: Build the tagged version
         run: |
           VERSION_NO_V="${VERSION#v}"
