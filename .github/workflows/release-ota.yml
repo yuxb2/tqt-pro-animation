@@ -45,18 +45,42 @@ jobs:
           fi
 
       - name: Create private Wi-Fi configuration
+        # The first pair is required; _2 to _4 are optional, and every one that
+        # is filled in becomes another network the published firmware can update
+        # from. Nothing here is echoed: the log only ever shows the count.
         env:
           WIFI_SSID: ${{ secrets.OTA_WIFI_SSID }}
           WIFI_PASSWORD: ${{ secrets.OTA_WIFI_PASSWORD }}
+          WIFI_SSID_2: ${{ secrets.OTA_WIFI_SSID_2 }}
+          WIFI_PASSWORD_2: ${{ secrets.OTA_WIFI_PASSWORD_2 }}
+          WIFI_SSID_3: ${{ secrets.OTA_WIFI_SSID_3 }}
+          WIFI_PASSWORD_3: ${{ secrets.OTA_WIFI_PASSWORD_3 }}
+          WIFI_SSID_4: ${{ secrets.OTA_WIFI_SSID_4 }}
+          WIFI_PASSWORD_4: ${{ secrets.OTA_WIFI_PASSWORD_4 }}
         run: |
           if [ -z "$WIFI_SSID" ] || [ -z "$WIFI_PASSWORD" ]; then
             echo "::error::Missing repository secrets OTA_WIFI_SSID and OTA_WIFI_PASSWORD."
             echo "Without them the published firmware has no Wi-Fi and can never update itself again."
             exit 1
           fi
-          SSID_ESCAPED=$(printf '%s' "$WIFI_SSID" | sed 's/\\/\\\\/g; s/"/\\"/g')
-          PASSWORD_ESCAPED=$(printf '%s' "$WIFI_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g')
-          printf '#pragma once\n#define OTA_WIFI_SSID "%s"\n#define OTA_WIFI_PASSWORD "%s"\n' "$SSID_ESCAPED" "$PASSWORD_ESCAPED" > CyberCycle/secrets.h
+          escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+          LIST=""
+          COUNT=0
+          for SUFFIX in "" _2 _3 _4; do
+            SSID_VAR="WIFI_SSID${SUFFIX}"
+            PASSWORD_VAR="WIFI_PASSWORD${SUFFIX}"
+            SSID="${!SSID_VAR}"
+            PASSWORD="${!PASSWORD_VAR}"
+            [ -n "$SSID" ] || continue
+            if [ -z "$PASSWORD" ]; then
+              echo "::error::Secret OTA_WIFI_SSID${SUFFIX} is set but OTA_WIFI_PASSWORD${SUFFIX} is empty."
+              exit 1
+            fi
+            LIST="${LIST} { \"$(escape "$SSID")\", \"$(escape "$PASSWORD")\" },"
+            COUNT=$((COUNT + 1))
+          done
+          printf '#pragma once\n#define OTA_WIFI_NETWORKS%s\n' "$LIST" > CyberCycle/secrets.h
+          echo "Wi-Fi networks compiled into this firmware: ${COUNT}"
 
       - name: Build the tagged version
         run: |

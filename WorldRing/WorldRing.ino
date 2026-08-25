@@ -33,8 +33,8 @@
 #define RING_REPEAT    2          // nb de fois que la phrase fait le tour
 #define TEXT_R         57.0f      // rayon de la ligne médiane du texte
 #define TEXT_PHASE_DEG 0.0f       // où commence la phrase ; 0 = à midi
-#define TEXT_SPIN_ON   0          // 0 = anneau fixe, comme la référence
-#define TEXT_SPIN_DPS  5.0f       // °/s quand il tourne (bouton droit)
+#define TEXT_SPIN_ON   1          // 0 = anneau fixe ; 1 = il tourne
+#define TEXT_SPIN_DPS  -6.0f      // °/s ; négatif = sens inverse des aiguilles
 #define TEXT_BOLD      1          // 1 = trait doublé (plus lisible en petit)
 #define TEXT_FILL      0.86f      // part de l'espace par lettre réellement utilisée
 #define TEXT_SCALE_MAX 2.2f
@@ -363,8 +363,11 @@ void loop() {
 
   // Le texte tourne doucement quand on le demande ; sinon il reste posé.
   float spinRate = textSpins ? TEXT_SPIN_DPS : 0.0f;
+  // Ramené dans [0, 2pi[ dans les deux sens : sinon un anneau qui tourne à
+  // l'envers accumule un angle négatif, et au bout de quelques jours le float
+  // perd assez de précision pour que les lettres tremblent.
   textAngle += spinRate * 0.017453293f * dt;
-  if (textAngle > 6.2831853f) textAngle -= 6.2831853f;
+  textAngle -= 6.2831853f * floorf(textAngle / 6.2831853f);
 
   float spinDeg = SPIN_DPS * clockT;
   spinDeg -= 360.0f * floorf(spinDeg / 360.0f);

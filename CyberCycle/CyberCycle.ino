@@ -37,6 +37,7 @@
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
@@ -48,11 +49,23 @@
 
 #if __has_include("secrets.h")
   #include "secrets.h"
-#else
-  // Copy secrets.example.h to secrets.h and enter the Wi-Fi details there.
-  #define OTA_WIFI_SSID ""
-  #define OTA_WIFI_PASSWORD ""
 #endif
+
+// A secrets.h written before multi-network support only defines the one pair.
+// Fold it into the list so it keeps working untouched.
+#if !defined(OTA_WIFI_NETWORKS) && defined(OTA_WIFI_SSID)
+  #define OTA_WIFI_NETWORKS { OTA_WIFI_SSID, OTA_WIFI_PASSWORD },
+#endif
+#ifndef OTA_WIFI_NETWORKS
+  // Copy secrets.example.h to secrets.h and enter the Wi-Fi details there.
+  #define OTA_WIFI_NETWORKS { "", "" },
+#endif
+
+// Every network the board may meet. Empty entries are ignored, so a list with
+// one real network behaves exactly as before.
+struct OtaNetwork { const char *ssid; const char *password; };
+static const OtaNetwork otaNetworks[] = { OTA_WIFI_NETWORKS };
+static const int OTA_NETWORK_COUNT = sizeof(otaNetworks) / sizeof(otaNetworks[0]);
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -198,19 +211,28 @@ static bool otaSyncClock() {
 }
 
 static void otaCheckForUpdate() {
-  if (OTA_WIFI_SSID[0] == '\0') return;   // secrets.h has not been configured yet
+  // Built here rather than kept around: it holds a copy of every SSID and
+  // password, and between two checks that is memory the animations can use.
+  WiFiMulti wifiMulti;
+  int known = 0;
+  for (int i = 0; i < OTA_NETWORK_COUNT; i++) {
+    if (otaNetworks[i].ssid[0] == '\0') continue;
+    wifiMulti.addAP(otaNetworks[i].ssid, otaNetworks[i].password);
+    known++;
+  }
+  if (known == 0) return;                // secrets.h has not been configured yet
 
-  Serial.printf("OTA: free heap %u bytes\n", ESP.getFreeHeap());
-  Serial.println("OTA: Wi-Fi connection...");
+  Serial.printf("OTA: free heap %u bytes, %d network(s) known\n", ESP.getFreeHeap(), known);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(OTA_WIFI_SSID, OTA_WIFI_PASSWORD);
-  unsigned long started = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - started < OTA_WIFI_TIMEOUT_MS) delay(250);
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("OTA: Wi-Fi unavailable");
+  // run() scans first and then joins the strongest network it recognises. That
+  // is what makes moving the board around work: an unknown place costs one
+  // scan, not one full connection timeout per network in the list.
+  if (wifiMulti.run(OTA_WIFI_TIMEOUT_MS) != WL_CONNECTED) {
+    Serial.println("OTA: no known Wi-Fi in range");
     WiFi.disconnect(); WiFi.mode(WIFI_OFF);
     return;
   }
+  Serial.printf("OTA: joined %s\n", WiFi.SSID().c_str());
   if (!otaSyncClock()) {
     Serial.println("OTA: clock sync failed");
     WiFi.disconnect(); WiFi.mode(WIFI_OFF);
@@ -2080,6 +2102,7 @@ static void animTunnel(float dt) {
 #define WR_ORBIT_ROLL0  (-22.0f)
 #define WR_ORBIT_PREC   6.0f     // deg/s of precession
 #define WR_TEXT_R  57.0f
+#define WR_TEXT_SPIN (-6.0f)     // deg/s, negative = counter-clockwise
 #define WR_TEXT    "THE WORLD IS WATCHING\x07"   // \x07 is the diamond separator
 #define WR_REPEAT  2
 #define WR_LUT_OUTSIDE 255
@@ -2207,7 +2230,7 @@ static void wrOrbit(float t) {
 }
 
 // Each letter is laid on the circle, feet towards the centre, and stroked.
-static void wrRingText() {
+static void wrRingText(float angle0) {
   const char *base = WR_TEXT;
   int len = strlen(base);
   int total = len * WR_REPEAT;
@@ -2221,7 +2244,7 @@ static void wrRingText() {
     uint16_t off = pgm_read_word(&VF_INDEX[(uint8_t)base[n % len]]);
     if (off == 0xFFFF) continue;
 
-    float th = (n + 0.5f) * step;
+    float th = angle0 + (n + 0.5f) * step;
     float ct = cosf(th), st = sinf(th);
     float rx = st, ry = -ct;          // outwards
     float tx = ct, ty = st;           // reading direction
@@ -2256,7 +2279,9 @@ static void animWorldRing(float t) {
   if (variant[10] != 2) wrGraticule(spinDeg * DEG_TO_RAD, rgbf(0.41f, 0.41f, 0.41f));
   if (variant[10] != 1) wrLand(spinDeg);
   wrOrbit(t);
-  wrRingText();
+  float textAngle = WR_TEXT_SPIN * DEG_TO_RAD * t;
+  textAngle -= TWO_PI * floorf(textAngle / TWO_PI);
+  wrRingText(textAngle);
   tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
 }
 

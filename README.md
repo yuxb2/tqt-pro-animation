@@ -33,12 +33,51 @@ ne démarrera pas.
 Le Wi-Fi n'est jamais dans le dépôt. Il vit à deux endroits :
 
 - **Sur le Mac** : `CyberCycle/secrets.h` (créé depuis `secrets.example.h`,
-  ignoré par Git).
-- **Sur GitHub** : Settings → Secrets and variables → Actions, deux secrets
-  nommés `OTA_WIFI_SSID` et `OTA_WIFI_PASSWORD`.
+  ignoré par Git). Sert aux flashs USB.
+- **Sur GitHub** : Settings → Secrets and variables → Actions. Sert au firmware
+  publié en OTA.
 
-Les deux sont déjà en place. Si tu changes de box, mets à jour les deux, sinon
-le T-QT ne pourra plus se mettre à jour.
+Les deux sont déjà en place pour la box actuelle.
+
+### Plusieurs réseaux
+
+Le T-QT accepte jusqu'à **quatre réseaux**. À chaque contrôle il scanne, garde
+ceux qu'il reconnaît et se connecte au plus fort : maison, bureau, partage de
+connexion du téléphone — il se met à jour là où il se trouve, sans rien avoir à
+changer quand il déménage. S'il n'en reconnaît aucun, il coupe le Wi-Fi après le
+scan (quelques secondes) et reprend l'animation.
+
+**Sur GitHub**, ajoute des secrets par paires numérotées. La première est
+obligatoire, les autres facultatives :
+
+| Secret | |
+| --- | --- |
+| `OTA_WIFI_SSID` / `OTA_WIFI_PASSWORD` | obligatoire |
+| `OTA_WIFI_SSID_2` / `OTA_WIFI_PASSWORD_2` | facultatif |
+| `OTA_WIFI_SSID_3` / `OTA_WIFI_PASSWORD_3` | facultatif |
+| `OTA_WIFI_SSID_4` / `OTA_WIFI_PASSWORD_4` | facultatif |
+
+Puis publie une nouvelle version (§3) : c'est la compilation qui grave les
+réseaux dans le firmware. Le log de l'Action affiche seulement `Wi-Fi networks
+compiled into this firmware: N` — vérifie ce chiffre, rien d'autre n'est écrit
+dans les logs.
+
+**Sur le Mac**, `secrets.h` prend la même liste :
+
+```c
+#define OTA_WIFI_NETWORKS \
+  { "Livebox-1234",   "motdepasse" }, \
+  { "Bureau",         "autre-mot-de-passe" }, \
+  { "iPhone de Yuri", "encore-un-autre" },
+```
+
+Attention à l'antislash en fin de ligne (sauf la dernière) et à la virgule
+après chaque accolade. Un ancien `secrets.h` à un seul réseau, avec
+`OTA_WIFI_SSID` et `OTA_WIFI_PASSWORD`, continue de marcher tel quel.
+
+> Les deux listes sont indépendantes. Ajouter un réseau seulement dans
+> `secrets.h` ne change rien à l'OTA : il faut le secret GitHub **et** une
+> nouvelle version publiée.
 
 ## 3. Publier une nouvelle version
 

@@ -47,7 +47,7 @@ une lettre manque, ajoute-la dans `tools/vecfont.py` et relance le générateur
 | Bouton | Action |
 | --- | --- |
 | **IO00** (BOOT) | style du globe : complet → filaire nu → continents seuls |
-| **IO47** (KEY) | met l'anneau de texte en rotation, ou le refige |
+| **IO47** (KEY) | fige l'anneau de texte, ou le relance |
 
 Le style « filaire nu » est celui du logo de référence (pas de continents),
 « continents seuls » enlève le quadrillage. Le bouton est là pour comparer
@@ -64,8 +64,8 @@ en direct sans recompiler ; une fois choisi, fixe le défaut en changeant
 | --- | --- | --- |
 | `TEXT_R` | `57.0` | rayon de la ligne médiane du texte. Au-delà de 58 les lettres touchent le bord. |
 | `TEXT_PHASE_DEG` | `0.0` | où commence la phrase sur le cercle. `0` = premier caractère à midi. |
-| `TEXT_SPIN_ON` | `0` | `1` pour que l'anneau tourne dès le démarrage. La référence est fixe. |
-| `TEXT_SPIN_DPS` | `5.0` | vitesse quand il tourne, en °/s. 5 = un tour en 72 s. |
+| `TEXT_SPIN_ON` | `1` | `0` pour figer l'anneau, comme sur la référence. |
+| `TEXT_SPIN_DPS` | `-6.0` | vitesse, en °/s. **Négatif = sens inverse des aiguilles**, positif = sens horaire. 6 = un tour par minute. |
 | `TEXT_BOLD` | `1` | trait doublé. À `0` c'est plus fin et plus fragile à cette taille. |
 | `TEXT_FILL` | `0.86` | part de la place allouée à chaque lettre qui est réellement occupée. Baisse à `0.78` pour aérer, monte à `0.92` pour resserrer. |
 
