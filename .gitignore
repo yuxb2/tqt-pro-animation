@@ -2,3 +2,4 @@
 .claude/
 CyberCycle/secrets.h
 build/
+__pycache__/
