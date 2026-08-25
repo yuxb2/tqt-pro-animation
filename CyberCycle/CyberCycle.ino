@@ -1,5 +1,5 @@
 /*
- * Cyber Cycle - ten cyberpunk animations on a 15-minute rotation
+ * Cyber Cycle - eleven cyberpunk animations on a 15-minute rotation
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -13,18 +13,23 @@
  *               beating against the tile grid, each read at a slightly
  *               different pitch by red, green and blue
  *   6 SphereColor  rotating point sphere with flowing rainbow colour fields
- *   7 Glyphs    falling glyph rain with fading tails
+ *   7 Scan      celestial scan: a sphere carved up by the isolines of a
+ *               field that lives on it, with temperature and coordinate
+ *               readouts wired to the point facing the viewer
  *   8 Eye       stencil eye: blinks, glitches, red/white paper cycle,
  *               cycles its own mood so it varies untouched
  *   9 Tunnel    a square corridor flown forwards, off-axis: rings swell out
  *               past the viewer while new ones open at the vanishing point,
  *               red where they are alone and orange where they pile up
+ *  10 World     wireframe globe with solid continents and an orbital ring,
+ *               wrapped in a phrase that runs twice around the screen
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
  *
- * Everything shares one static framebuffer except the glyph rain, which draws
- * characters directly.
+ * Everything shares one static framebuffer. The celestial scan is the only
+ * view that also writes to the panel directly, for its text: the framebuffer
+ * has no font.
  *
  * Hardware: LilyGo T-QT Pro (ESP32-S3, 128x128, TFT_eSPI Setup211)
  */
@@ -38,6 +43,8 @@
 #include <time.h>
 #include "OneButton.h"
 #include "pb_map.h"
+#include "vecfont.h"     // stroke font for the World Ring lettering
+#include "world_map.h"   // coarse land mask for the World Ring globe
 
 #if __has_include("secrets.h")
   #include "secrets.h"
@@ -59,20 +66,23 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 10
+#define NUM_ANIMS 11
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
-//             5 Mosaic  6 SphereColor  7 Glyphs  8 Eye  9 Tunnel
+//             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
+//            10 World
+//  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
+//  out rather than running them back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
 // ===================================================================
-static int viewOrder[] = { 8, 0, 7, 1, 2, 3, 4, 5, 6, 9 };
+static int viewOrder[] = { 8, 0, 7, 2, 1, 3, 4, 10, 5, 6, 9 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -190,6 +200,7 @@ static bool otaSyncClock() {
 static void otaCheckForUpdate() {
   if (OTA_WIFI_SSID[0] == '\0') return;   // secrets.h has not been configured yet
 
+  Serial.printf("OTA: free heap %u bytes\n", ESP.getFreeHeap());
   Serial.println("OTA: Wi-Fi connection...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(OTA_WIFI_SSID, OTA_WIFI_PASSWORD);
@@ -1324,77 +1335,326 @@ static void animSphereColor(float t) {
 }
 
 // ======================================================================
-// 7 - GLYPH RAIN (draws characters directly, no framebuffer)
+// 7 - CELESTIAL SCAN (ported from CelestialScan/)
+//     A scalar field lives on the sphere - four concentric waves around
+//     axes that precess slowly - and the white curves are its isolines,
+//     pulled out by marching squares. Same mechanism as an isobar chart,
+//     hence the H and L markers sitting on the extrema.
+//     The corner readouts are not decoration: the coordinates are the
+//     point of the sphere facing us, and the temperature is the value of
+//     the field there, so every number moves with the picture.
+//     Like the glyph rain it replaces, the text is written straight to the
+//     panel once the frame has been pushed - the framebuffer has no font.
 // ======================================================================
-#define CELL_W 6
-#define CELL_H 8
-#define GCOLS (SCREEN_W / CELL_W)   // 21
-#define GROWS (SCREEN_H / CELL_H)   // 16
+#define CS_LON 80
+#define CS_LAT 40
+#define CS_NL (CS_LON + 1)
+#define CS_NA (CS_LAT + 1)
+#define CS_R  48.0f
+#define CS_TERMS 4
+#define CS_LIMB_Z 0.10f          // margin at the rim, else the curves pile up
+#define CS_HL_MAX 4
+#define CS_HL_GAP 16             // min pixels between two H/L letters
+#define CS_TEMP_BASE (-78.0f)
+#define CS_TEMP_SPAN 9.0f
+#define CS_DEG 0xF8              // degree ring in font 1, needs cp437 on
 
-static const char glyphs[] =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<>[]{}/\\|=+*#$%&@!?";
-static const int nGlyphs = sizeof(glyphs) - 1;
-static const uint16_t gShades[3][4] = {
-  { 0x07E0, 0x05C0, 0x0380, 0x0180 },
-  { 0x07FF, 0x05DF, 0x039B, 0x0177 },
-  { 0xF81F, 0xB817, 0x780F, 0x3807 }
+// Celestial Scan and World Ring (view 10) each want one big working table,
+// and only one view is ever running, so they share this buffer. Each
+// rebuilds its own contents in initAnim().
+#define CS_SCRATCH_BYTES   (CS_NA * CS_NL * (int)sizeof(float))
+#define WR_SCRATCH_BYTES   (2 * 79 * 79)
+#define VIEW_SCRATCH_BYTES (CS_SCRATCH_BYTES > WR_SCRATCH_BYTES ? CS_SCRATCH_BYTES : WR_SCRATCH_BYTES)
+static uint32_t viewScratch[(VIEW_SCRATCH_BYTES + 3) / 4];
+
+static float *csField = (float *)viewScratch;
+static float csCosLat[CS_NA], csSinLat[CS_NA];
+static float csCosLon[CS_NL], csSinLon[CS_NL];    // sphere frame
+static float csCosLonS[CS_NL], csSinLonS[CS_NL];  // same, once spun
+static float csProjLon[CS_NL];
+static float csRowX[2][CS_NL], csRowY[2][CS_NL], csRowZ[2][CS_NL];
+static float csCT = 1.0f, csST = 0.0f, csTilt = 14.0f;
+
+struct CsTerm { float amp, omega, ax, ay, az, precess, phase; };
+static CsTerm csTerm[CS_TERMS];
+
+static const uint8_t csLevelCount[3] = {  14,    20,     8   };
+static const float   csLevelStep[3]  = { 0.36f, 0.25f, 0.62f };
+
+// Corners v0 top-left, v1 top-right, v2 bottom-right, v3 bottom-left.
+// Edges e0 top, e1 right, e2 bottom, e3 left.
+static const int8_t csSeg[16][4] = {
+  {-1,-1,-1,-1}, { 3, 0,-1,-1}, { 0, 1,-1,-1}, { 3, 1,-1,-1},
+  { 1, 2,-1,-1}, { 3, 0, 1, 2}, { 0, 2,-1,-1}, { 3, 2,-1,-1},
+  { 2, 3,-1,-1}, { 2, 0,-1,-1}, { 0, 1, 2, 3}, { 2, 1,-1,-1},
+  { 1, 3,-1,-1}, { 1, 0,-1,-1}, { 0, 3,-1,-1}, {-1,-1,-1,-1}
 };
-struct GColumn { float head, speed; int16_t lastRow; int8_t trail; uint8_t hue; uint16_t gen; };
-static GColumn gcol[GCOLS];
-static float glyphSpeed = 1.0f;
 
-static inline char glyphAt(int c, int r, uint16_t gen) {
-  uint32_t h = (uint32_t)c * 73856093u ^ (uint32_t)(r + 64) * 19349663u ^ (uint32_t)gen * 83492791u;
-  h ^= h >> 13;
-  return glyphs[h % nGlyphs];
-}
-static uint8_t glyphHue() {
-  int sc = variant[7];
-  if (sc == 0) return 0;
-  if (sc == 2) return 2;
-  int r = random(100);
-  return (r < 70) ? 0 : (r < 88 ? 1 : 2);
-}
-static void resetGColumn(int c) {
-  gcol[c].head = -(float)random(GROWS * 2);
-  gcol[c].speed = 5.0f + random(100) / 100.0f * 16.0f;
-  gcol[c].trail = 5 + random(10);
-  gcol[c].hue = glyphHue();
-  gcol[c].gen++;
-  gcol[c].lastRow = (int16_t)floorf(gcol[c].head) - 1;
-}
-static void initGlyphs() {
-  tft.fillScreen(TFT_BLACK);
-  for (int c = 0; c < GCOLS; c++) { gcol[c].gen = random(1000); resetGColumn(c); }
-}
-static inline void gDraw(int c, int r, uint16_t colr, uint16_t gen) {
-  if (r < 0 || r >= GROWS) return;
-  tft.drawChar(c * CELL_W, r * CELL_H, glyphAt(c, r, gen), colr, TFT_BLACK, 1);
-}
-static void animGlyphs(float dt) {
-  for (int c = 0; c < GCOLS; c++) {
-    GColumn &col = gcol[c];
-    col.head += col.speed * glyphSpeed * dt;
-    int r = (int)floorf(col.head);
-    if (r == col.lastRow) continue;
-    col.lastRow = r;
-    const uint16_t *sh = gShades[col.hue];
-    gDraw(c, r, TFT_WHITE, col.gen);
-    gDraw(c, r - 1, sh[0], col.gen);
-    gDraw(c, r - 2, sh[1], col.gen);
-    gDraw(c, r - 4, sh[2], col.gen);
-    gDraw(c, r - 7, sh[3], col.gen);
-    if (r - col.trail >= 0 && r - col.trail < GROWS)
-      tft.fillRect(c * CELL_W, (r - col.trail) * CELL_H, CELL_W, CELL_H, TFT_BLACK);
-    if (r - col.trail > GROWS) resetGColumn(c);
+static void initCelestial() {
+  for (int j = 0; j < CS_NA; j++) {
+    float lat = HALF_PI - PI * j / CS_LAT;
+    csCosLat[j] = cosf(lat);
+    csSinLat[j] = sinf(lat);
   }
-  for (int i = 0; i < 3; i++) {
-    int c = random(GCOLS);
-    GColumn &col = gcol[c];
-    int r = (int)floorf(col.head) - 1 - random(col.trail > 1 ? col.trail - 1 : 1);
-    if (r < 0 || r >= GROWS) continue;
-    tft.drawChar(c * CELL_W, r * CELL_H, glyphs[random(nGlyphs)], gShades[col.hue][1], TFT_BLACK, 1);
+  for (int i = 0; i < CS_NL; i++) {
+    float lon = TWO_PI * i / CS_LON;
+    csCosLon[i] = cosf(lon);
+    csSinLon[i] = sinf(lon);
   }
+  for (int k = 0; k < CS_TERMS; k++) {          // a fresh object every time
+    float x = random(-1000, 1001) / 1000.0f;
+    float y = random(-1000, 1001) / 1000.0f;
+    float z = random(-1000, 1001) / 1000.0f;
+    float n = sqrtf(x * x + y * y + z * z);
+    if (n < 0.05f) { x = 0; y = 0; z = 1; n = 1; }
+    csTerm[k].ax = x / n;
+    csTerm[k].ay = y / n;
+    csTerm[k].az = z / n;
+    csTerm[k].amp = 0.45f + random(0, 601) / 1000.0f;
+    csTerm[k].omega = 1.9f + 2.4f * (random(0, 1001) / 1000.0f);
+    csTerm[k].precess = random(-140, 141) / 1000.0f;
+    csTerm[k].phase = random(0, 6283) / 1000.0f;
+  }
+}
+
+static void csComputeField(float t) {
+  int total = CS_NA * CS_NL;
+  for (int i = 0; i < total; i++) csField[i] = 0.0f;
+
+  for (int k = 0; k < CS_TERMS; k++) {
+    CsTerm &tm = csTerm[k];
+    float a = tm.precess * t;
+    float ca = cosf(a), sa = sinf(a);
+    float dx = tm.ax * ca - tm.az * sa;
+    float dy = tm.ay;
+    float dz = tm.ax * sa + tm.az * ca;
+    float ph = fmodf(tm.phase + 0.23f * t, 6.2831853f);
+
+    // x.d factors out: at a fixed latitude only the longitude part varies
+    for (int i = 0; i < CS_NL; i++) csProjLon[i] = csCosLon[i] * dx + csSinLon[i] * dz;
+
+    for (int j = 0; j < CS_NA; j++) {
+      float base = csSinLat[j] * dy;
+      float cla = csCosLat[j];
+      float *row = &csField[j * CS_NL];
+      for (int i = 0; i < CS_NL; i++)
+        row[i] += tm.amp * sinf(tm.omega * (base + cla * csProjLon[i]) + ph);
+    }
+  }
+}
+
+static void csProjectRow(int j, int slot) {
+  float cla = csCosLat[j], sla = csSinLat[j];
+  for (int i = 0; i < CS_NL; i++) {
+    float x = cla * csCosLonS[i];
+    float z = cla * csSinLonS[i];
+    float ys = sla * csCT - z * csST;
+    csRowX[slot][i] = 64.0f + CS_R * x;
+    csRowY[slot][i] = 64.0f - CS_R * ys;
+    csRowZ[slot][i] = sla * csST + z * csCT;
+  }
+}
+
+// cx/cy/v hold the four corners in v0..v3 order.
+static inline void csEdge(int e, const float *cx, const float *cy, const float *v,
+                          float L, float *ox, float *oy) {
+  int a = e, b = (e + 1) & 3;
+  float dv = v[b] - v[a];
+  float t = (fabsf(dv) < 1e-9f) ? 0.5f : (L - v[a]) / dv;
+  if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
+  *ox = cx[a] + (cx[b] - cx[a]) * t;
+  *oy = cy[a] + (cy[b] - cy[a]) * t;
+}
+
+static void csContours() {
+  int nlev = csLevelCount[variant[7]];
+  float step = csLevelStep[variant[7]];
+  float first = -(nlev - 1) * 0.5f * step;
+
+  int cur = 0;
+  csProjectRow(0, 0);
+
+  for (int j = 0; j < CS_LAT; j++) {
+    int nxt = cur ^ 1;
+    csProjectRow(j + 1, nxt);
+
+    const float *fa = &csField[j * CS_NL];
+    const float *fb = &csField[(j + 1) * CS_NL];
+
+    for (int i = 0; i < CS_LON; i++) {
+      // A cell straddling the rim has corners in front and behind; interpolating
+      // between them would cut a chord across the disc, so drop it entirely.
+      if (csRowZ[cur][i] <= CS_LIMB_Z || csRowZ[cur][i + 1] <= CS_LIMB_Z ||
+          csRowZ[nxt][i + 1] <= CS_LIMB_Z || csRowZ[nxt][i] <= CS_LIMB_Z) continue;
+
+      float v0 = fa[i], v1 = fa[i + 1], v2 = fb[i + 1], v3 = fb[i];
+      float lo = v0, hi = v0;
+      if (v1 < lo) lo = v1;
+      if (v1 > hi) hi = v1;
+      if (v2 < lo) lo = v2;
+      if (v2 > hi) hi = v2;
+      if (v3 < lo) lo = v3;
+      if (v3 > hi) hi = v3;
+
+      for (int k = 0; k < nlev; k++) {
+        float L = first + k * step;
+        if (L <= lo || L > hi) continue;
+        int idx = (v0 > L ? 1 : 0) | (v1 > L ? 2 : 0) | (v2 > L ? 4 : 0) | (v3 > L ? 8 : 0);
+        const int8_t *seg = csSeg[idx];
+        if (seg[0] < 0) continue;
+        const float cx[4] = { csRowX[cur][i], csRowX[cur][i + 1], csRowX[nxt][i + 1], csRowX[nxt][i] };
+        const float cy[4] = { csRowY[cur][i], csRowY[cur][i + 1], csRowY[nxt][i + 1], csRowY[nxt][i] };
+        const float vv[4] = { v0, v1, v2, v3 };
+        for (int s = 0; s < 4; s += 2) {
+          if (seg[s] < 0) break;
+          float x0, y0, x1, y1;
+          csEdge(seg[s],     cx, cy, vv, L, &x0, &y0);
+          csEdge(seg[s + 1], cx, cy, vv, L, &x1, &y1);
+          line(x0, y0, x1, y1, TFT_WHITE);
+        }
+      }
+    }
+    cur = nxt;
+  }
+}
+
+static void csGraticule(float spinRad) {
+  const uint16_t grey = rgbf(0.59f, 0.59f, 0.59f);
+  for (int m = 0; m < 12; m++) {                 // meridians every 30 deg
+    float lon = m * (PI / 6.0f) + spinRad;
+    float cl = cosf(lon), sl = sinf(lon);
+    for (int k = 0; k <= 120; k += 3) {
+      float lat = -HALF_PI + PI * k / 120.0f;
+      float cla = cosf(lat), sla = sinf(lat);
+      float z = cla * sl;
+      if (sla * csST + z * csCT <= 0.0f) continue;
+      px((int)(64.0f + CS_R * cla * cl), (int)(64.0f - CS_R * (sla * csCT - z * csST)), grey);
+    }
+  }
+  for (int lat = -60; lat <= 60; lat += 30) {    // parallels every 30 deg
+    float la = lat * DEG_TO_RAD;
+    float cla = cosf(la), sla = sinf(la);
+    for (int k = 0; k < 180; k += 3) {
+      float lon = TWO_PI * k / 180.0f + spinRad;
+      float z = cla * sinf(lon);
+      if (sla * csST + z * csCT <= 0.0f) continue;
+      px((int)(64.0f + CS_R * cla * cosf(lon)), (int)(64.0f - CS_R * (sla * csCT - z * csST)), grey);
+    }
+  }
+}
+
+static void csText(int x, int y, const char *s) {
+  while (*s) {
+    tft.drawChar(x, y, (uint8_t)*s++, TFT_WHITE, TFT_BLACK, 1);
+    x += 6;
+  }
+}
+
+// The four strongest highs and lows, marked the way a weather chart does.
+static void csExtrema() {
+  int   bi[CS_HL_MAX], bj[CS_HL_MAX];
+  char  bc[CS_HL_MAX];
+  float bs[CS_HL_MAX];
+  int   n = 0;
+
+  for (int j = 2; j < CS_LAT - 1; j++) {
+    const float *row = &csField[j * CS_NL];
+    const float *up  = &csField[(j - 1) * CS_NL];
+    const float *dn  = &csField[(j + 1) * CS_NL];
+    for (int i = 0; i < CS_LON; i++) {
+      int ip = (i + 1) % CS_LON, im = (i + CS_LON - 1) % CS_LON;
+      float v = row[i];
+      char ch = 0;
+      if (v > row[ip] && v > row[im] && v > up[i] && v > dn[i]) ch = 'H';
+      else if (v < row[ip] && v < row[im] && v < up[i] && v < dn[i]) ch = 'L';
+      if (!ch) continue;
+
+      float score = fabsf(v);
+      int slot = -1;
+      if (n < CS_HL_MAX) slot = n++;
+      else {
+        int worst = 0;
+        for (int k = 1; k < CS_HL_MAX; k++) if (bs[k] < bs[worst]) worst = k;
+        if (score > bs[worst]) slot = worst;
+      }
+      if (slot >= 0) { bi[slot] = i; bj[slot] = j; bc[slot] = ch; bs[slot] = score; }
+    }
+  }
+
+  int placedX[CS_HL_MAX], placedY[CS_HL_MAX], placed = 0;
+  for (int k = 0; k < n; k++) {
+    float cla = csCosLat[bj[k]], sla = csSinLat[bj[k]];
+    float x = cla * csCosLonS[bi[k]];
+    float z = cla * csSinLonS[bi[k]];
+    if (sla * csST + z * csCT < 0.35f) continue;      // too close to the rim
+    int sx = (int)(64.0f + CS_R * x);
+    int sy = (int)(64.0f - CS_R * (sla * csCT - z * csST));
+
+    bool crowded = false;                             // no two letters touching
+    for (int q = 0; q < placed; q++)
+      if (abs(sx - placedX[q]) < CS_HL_GAP && abs(sy - placedY[q]) < CS_HL_GAP) crowded = true;
+    if (crowded) continue;
+    placedX[placed] = sx; placedY[placed] = sy; placed++;
+
+    tft.drawChar(sx - 2, sy - 3, bc[k], TFT_WHITE, TFT_BLACK, 1);
+  }
+}
+
+static void csHud(float spinDeg) {
+  char buf[16];
+  float subLat = csTilt;
+  float subLon = -spinDeg;
+  while (subLon < -180.0f) subLon += 360.0f;
+  while (subLon >= 180.0f) subLon -= 360.0f;
+
+  int j = (int)((90.0f - subLat) / 180.0f * CS_LAT);
+  if (j < 0) j = 0; else if (j > CS_LAT) j = CS_LAT;
+  int i = (int)((subLon + 180.0f) / 360.0f * CS_LON);
+  if (i < 0) i = 0; else if (i >= CS_LON) i = CS_LON - 1;
+
+  float degC = CS_TEMP_BASE + CS_TEMP_SPAN * csField[j * CS_NL + i];
+  sprintf(buf, "%.1f%cC", degC, CS_DEG);
+  csText(1, 1, buf);
+  sprintf(buf, "%.1f%cF", degC * 9.0f / 5.0f + 32.0f, CS_DEG);
+  csText(SCREEN_W - 1 - 6 * (int)strlen(buf), 1, buf);
+
+  float v = fabsf(subLat);
+  sprintf(buf, "%d%c%02d'%c", (int)v, CS_DEG, (int)((v - (int)v) * 60.0f), subLat >= 0 ? 'N' : 'S');
+  csText(1, SCREEN_H - 8, buf);
+  v = fabsf(subLon);
+  sprintf(buf, "%d%c%02d'%c", (int)v, CS_DEG, (int)((v - (int)v) * 60.0f), subLon >= 0 ? 'E' : 'W');
+  csText(SCREEN_W - 1 - 6 * (int)strlen(buf), SCREEN_H - 8, buf);
+
+  csText(62, 1, "N");
+  csText(62, SCREEN_H - 8, "S");
+  csText(1, 60, "W");
+  csText(SCREEN_W - 6, 60, "E");
+}
+
+static void animCelestial(float t) {
+  csTilt = 14.0f + 12.0f * sinf(TWO_PI * t / 47.0f);   // the axis rocks slowly
+  float tr = csTilt * DEG_TO_RAD;
+  csCT = cosf(tr);
+  csST = sinf(tr);
+
+  float spinDeg = 12.0f * t;
+  spinDeg -= 360.0f * floorf(spinDeg / 360.0f);
+  float spinRad = spinDeg * DEG_TO_RAD;
+
+  float cs = cosf(spinRad), ss = sinf(spinRad);
+  for (int i = 0; i < CS_NL; i++) {
+    csCosLonS[i] = csCosLon[i] * cs - csSinLon[i] * ss;
+    csSinLonS[i] = csCosLon[i] * ss + csSinLon[i] * cs;
+  }
+
+  csComputeField(t);
+
+  memset(fb, 0, sizeof(fb));
+  csGraticule(spinRad);
+  csContours();
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+  csExtrema();
+  csHud(spinDeg);
 }
 
 // ======================================================================
@@ -1797,6 +2057,210 @@ static void animTunnel(float dt) {
 }
 
 // ======================================================================
+// 10 - WORLD RING (ported from WorldRing/)
+//      Wireframe globe with solid continents, the orbital ring from the
+//      logo, and a phrase running twice around the screen.
+//      The lettering is a stroke font rather than a bitmap one: that is
+//      what lets every glyph be rotated onto the circle.
+//      The globe's tilt never changes and it spins about its own poles,
+//      so for a given screen pixel the latitude is fixed and the longitude
+//      is only an offset. All the inverse trigonometry happens once in
+//      initAnim; the frame loop just subtracts a uint8_t, which wraps on
+//      its own - hence the 256-column map.
+// ======================================================================
+#define WR_R       38.0f
+#define WR_LUT_R   ((int)WR_R + 1)
+#define WR_LUT_W   (2 * WR_LUT_R + 1)
+#define WR_TILT    16.0f
+#define WR_SPIN    22.0f         // deg/s, a full turn in about 16 s
+#define WR_MERIDIANS 18
+#define WR_PAR_STEP  20
+#define WR_ORBIT_R      49.0f
+#define WR_ORBIT_SQUASH 0.28f
+#define WR_ORBIT_ROLL0  (-22.0f)
+#define WR_ORBIT_PREC   6.0f     // deg/s of precession
+#define WR_TEXT_R  57.0f
+#define WR_TEXT    "THE WORLD IS WATCHING\x07"   // \x07 is the diamond separator
+#define WR_REPEAT  2
+#define WR_LUT_OUTSIDE 255
+
+static_assert(2 * WR_LUT_W * WR_LUT_W <= VIEW_SCRATCH_BYTES,
+              "view scratch buffer too small for World Ring");
+
+static uint8_t *wrLat = (uint8_t *)viewScratch;
+static uint8_t *wrLon = (uint8_t *)viewScratch + WR_LUT_W * WR_LUT_W;
+static float wrCT, wrST;
+
+static void initWorldRing() {
+  wrCT = cosf(WR_TILT * DEG_TO_RAD);
+  wrST = sinf(WR_TILT * DEG_TO_RAD);
+
+  for (int y = 0; y < WR_LUT_W; y++) {
+    for (int x = 0; x < WR_LUT_W; x++) {
+      int i = y * WR_LUT_W + x;
+      wrLat[i] = WR_LUT_OUTSIDE;
+      float dx = (float)(x - WR_LUT_R) + 0.5f;
+      float dy = (float)(y - WR_LUT_R) + 0.5f;
+      if (dx * dx + dy * dy > WR_R * WR_R) continue;
+
+      float xs =  dx / WR_R;
+      float ys = -dy / WR_R;
+      float zs = sqrtf(fmaxf(0.0f, 1.0f - xs * xs - ys * ys));
+
+      float gy = ys * wrCT + zs * wrST;          // undo the tilt
+      float gz = -ys * wrST + zs * wrCT;
+      if (gy > 1.0f) gy = 1.0f; else if (gy < -1.0f) gy = -1.0f;
+
+      int li = (int)((HALF_PI - asinf(gy)) / PI * MAP_LAT);
+      if (li < 0) li = 0; else if (li >= MAP_LAT) li = MAP_LAT - 1;
+      int gi = (int)((atan2f(gz, xs) + PI) / TWO_PI * MAP_LON) & (MAP_LON - 1);
+
+      wrLat[i] = (uint8_t)li;
+      wrLon[i] = (uint8_t)gi;
+    }
+  }
+}
+
+// Globe frame -> screen. False when the point is on the far side.
+static inline bool wrProject(float x, float y, float z, float *sx, float *sy) {
+  float ys = y * wrCT - z * wrST;
+  if (y * wrST + z * wrCT <= 0.0f) return false;
+  *sx = 64.0f + WR_R * x;
+  *sy = 64.0f - WR_R * ys;
+  return true;
+}
+
+static void wrGraticule(float spinRad, uint16_t col) {
+  for (int m = 0; m < WR_MERIDIANS; m++) {
+    float lon = TWO_PI * m / WR_MERIDIANS + spinRad;
+    float cl = cosf(lon), sl = sinf(lon);
+    bool have = false;
+    float ax = 0, ay = 0;
+    for (int k = 0; k <= 48; k++) {
+      float lat = -HALF_PI + PI * k / 48.0f;
+      float cla = cosf(lat), sla = sinf(lat);
+      float sx, sy;
+      if (wrProject(cla * cl, sla, cla * sl, &sx, &sy)) {
+        if (have) line(ax, ay, sx, sy, col);
+        ax = sx; ay = sy; have = true;
+      } else have = false;
+    }
+  }
+  for (int lat = -90 + WR_PAR_STEP; lat <= 90 - WR_PAR_STEP; lat += WR_PAR_STEP) {
+    float la = lat * DEG_TO_RAD;
+    float cla = cosf(la), sla = sinf(la);
+    bool have = false;
+    float ax = 0, ay = 0;
+    for (int k = 0; k <= 64; k++) {
+      float lon = TWO_PI * k / 64.0f + spinRad;
+      float sx, sy;
+      if (wrProject(cla * cosf(lon), sla, cla * sinf(lon), &sx, &sy)) {
+        if (have) line(ax, ay, sx, sy, col);
+        ax = sx; ay = sy; have = true;
+      } else have = false;
+    }
+  }
+  // the rim
+  float px0 = 64.0f + WR_R, py0 = 64.0f;
+  for (int k = 1; k <= 48; k++) {
+    float a = TWO_PI * k / 48.0f;
+    float x = 64.0f + WR_R * cosf(a), y = 64.0f + WR_R * sinf(a);
+    line(px0, py0, x, y, col);
+    px0 = x; py0 = y;
+  }
+}
+
+static void wrLand(float spinDeg) {
+  uint8_t shift = (uint8_t)(lroundf(spinDeg * (MAP_LON / 360.0f)) & (MAP_LON - 1));
+  for (int y = 0; y < WR_LUT_W; y++) {
+    const uint8_t *rowLat = &wrLat[y * WR_LUT_W];
+    const uint8_t *rowLon = &wrLon[y * WR_LUT_W];
+    int sy = 64 - WR_LUT_R + y;
+    for (int x = 0; x < WR_LUT_W; x++) {
+      if (rowLat[x] == WR_LUT_OUTSIDE) continue;
+      if (landAt(rowLat[x], (uint8_t)(rowLon[x] - shift)))
+        px(64 - WR_LUT_R + x, sy, TFT_WHITE);
+    }
+  }
+}
+
+static void wrOrbit(float t) {
+  float roll = (WR_ORBIT_ROLL0 + WR_ORBIT_PREC * t) * DEG_TO_RAD;
+  float cr = cosf(roll), sr = sinf(roll);
+  float cz = sqrtf(1.0f - WR_ORBIT_SQUASH * WR_ORBIT_SQUASH);
+  float ax = 0, ay = 0;
+  bool ahid = true;
+  for (int i = 0; i <= 120; i++) {
+    float u = TWO_PI * i / 120.0f;
+    float cu = cosf(u), su = sinf(u);
+    float x1 = cu, y1 = su * WR_ORBIT_SQUASH, z1 = su * cz;
+    float sx = 64.0f + WR_ORBIT_R * (x1 * cr - y1 * sr);
+    float sy = 64.0f - WR_ORBIT_R * (x1 * sr + y1 * cr);
+    float dx = sx - 64.0f, dy = sy - 64.0f;
+    bool hid = (z1 < 0.0f) && (dx * dx + dy * dy < WR_R * WR_R);   // behind the globe
+    if (i > 0 && !hid && !ahid) {
+      line(ax, ay, sx, sy, TFT_WHITE);
+      line(ax, ay - 1, sx, sy - 1, TFT_WHITE);
+    }
+    ax = sx; ay = sy; ahid = hid;
+  }
+}
+
+// Each letter is laid on the circle, feet towards the centre, and stroked.
+static void wrRingText() {
+  const char *base = WR_TEXT;
+  int len = strlen(base);
+  int total = len * WR_REPEAT;
+  if (!total) return;
+
+  float step = TWO_PI / total;
+  float scale = WR_TEXT_R * step * 0.86f / VF_W;
+  if (scale < 1.0f) scale = 1.0f; else if (scale > 2.2f) scale = 2.2f;
+
+  for (int n = 0; n < total; n++) {
+    uint16_t off = pgm_read_word(&VF_INDEX[(uint8_t)base[n % len]]);
+    if (off == 0xFFFF) continue;
+
+    float th = (n + 0.5f) * step;
+    float ct = cosf(th), st = sinf(th);
+    float rx = st, ry = -ct;          // outwards
+    float tx = ct, ty = st;           // reading direction
+
+    const int8_t *p = &VF_STROKES[off];
+    bool have = false;
+    float lx = 0, ly = 0;
+    for (;;) {
+      int8_t gx = (int8_t)pgm_read_byte(p++);
+      if (gx == VF_END_GLYPH) break;
+      if (gx == VF_END_POLY) { have = false; continue; }
+      int8_t gy = (int8_t)pgm_read_byte(p++);
+
+      float u = ((float)gx - 2.0f) * scale;
+      float v = ((float)gy - 3.0f) * scale;
+      float x = 64.0f + rx * (WR_TEXT_R - v) + tx * u;
+      float y = 64.0f + ry * (WR_TEXT_R - v) + ty * u;
+      if (have) {
+        line(lx, ly, x, y, TFT_WHITE);
+        line(lx + 1, ly, x + 1, y, TFT_WHITE);   // bold, else it is too frail
+      }
+      lx = x; ly = y; have = true;
+    }
+  }
+}
+
+static void animWorldRing(float t) {
+  float spinDeg = WR_SPIN * t;
+  spinDeg -= 360.0f * floorf(spinDeg / 360.0f);
+
+  memset(fb, 0, sizeof(fb));
+  if (variant[10] != 2) wrGraticule(spinDeg * DEG_TO_RAD, rgbf(0.41f, 0.41f, 0.41f));
+  if (variant[10] != 1) wrLand(spinDeg);
+  wrOrbit(t);
+  wrRingText();
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -1807,7 +2271,7 @@ static void initAnim(int idx) {
     case 3: initBuddha(); break;
     case 4: initSwarm(); break;
     case 6: initSphereColor(); break;
-    case 7: initGlyphs(); break;
+    case 7: initCelestial(); break;
     case 8:
       eBlinking = false; eNextBlink = 1.5f;
       eBgRed = true; eBgT = BG_RED_TIME; eGlitching = false; eGCount = 0;
@@ -1815,6 +2279,7 @@ static void initAnim(int idx) {
       eIntro = true; eIntroT = 0;        // slow wake-up each time the eye starts
       break;
     case 9: initTunnel(); break;
+    case 10: initWorldRing(); break;
     default: break;
   }
   Serial.printf("anim %d\n", idx);
@@ -1830,6 +2295,7 @@ void setup() {
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
   tft.setSwapBytes(true);
+  tft.setAttribute(CP437_SWITCH, 1);   // so 0xF8 gives the degree ring
 
   randomSeed(analogRead(4) * millis());
 
@@ -1837,7 +2303,8 @@ void setup() {
   variant[0] = 1;   // Morph : widest chroma bleed (the one that smears most)
   variant[2] = 1;   // Waves: the most zoomed-in (12-line) variant by default
   variant[6] = 0;   // SphereColor: flowing colour-wave variant by default
-  variant[7] = 1;   // Glyphs: mixed blue / pink / green
+  variant[7] = 0;   // Scan: medium contour density
+  variant[10] = 0;  // World: graticule and continents together
 
   btnLeft.attachClick([]() {                 // next view in the schedule
     slot = (slot + 1) % N_VIEWS;
@@ -1872,9 +2339,10 @@ void loop() {
     case 4: animSwarm(dt);         break;
     case 5: animMosaic(animTime);  break;
     case 6: animSphereColor(animTime); break;
-    case 7: animGlyphs(dt);        break;
+    case 7: animCelestial(animTime); break;
     case 8: animEye(dt);           break;
     case 9: animTunnel(dt);        break;
+    case 10: animWorldRing(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {

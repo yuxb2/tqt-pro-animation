@@ -5,7 +5,7 @@ Animations pour LilyGo **T-QT Pro** (ESP32-S3, écran 128×128 GC9A01), avec mis
 
 Dépôt : https://github.com/yuxb2/tqt-pro-animation
 
-Le croquis publié est `CyberCycle/` : dix animations qui tournent 15 minutes
+Le croquis publié est `CyberCycle/` : onze animations qui tournent 15 minutes
 chacune. Bouton gauche = animation suivante, bouton droit = variante.
 
 ---
@@ -88,6 +88,21 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
+
+Deux d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7 et 10) :
+
+- `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
+  de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
+  toute seule.
+- `CelestialScan/` — sphère en courbes de niveau, avec température et
+  coordonnées, comme si on auscultait un objet céleste.
+
+Les deux tables générées (`vecfont.h`, `world_map.h`) existent en double, dans
+`WorldRing/` et dans `CyberCycle/` : l'IDE Arduino ne compile que les fichiers
+posés dans le dossier du croquis, on ne peut pas les partager. C'est
+`WorldRing/tools/generate.py` qui écrit les deux copies, donc lance-le plutôt
+que d'éditer un `.h` à la main.
 
 ## 6. Les bibliothèques dans `libraries/`
 
