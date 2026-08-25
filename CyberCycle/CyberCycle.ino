@@ -1,5 +1,5 @@
 /*
- * Cyber Cycle - eleven cyberpunk animations on a 15-minute rotation
+ * Cyber Cycle - twelve cyberpunk animations on a 15-minute rotation
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -23,6 +23,8 @@
  *               red where they are alone and orange where they pile up
  *  10 World     wireframe globe with solid continents and an orbital ring,
  *               wrapped in a phrase that runs twice around the screen
+ *  11 Hypno     op-art eye: rings on a black pupil that tighten on the side
+ *               it looks at, ringed by bands drifting in towards the lid
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -79,23 +81,23 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 11
+#define NUM_ANIMS 12
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
-//            10 World
+//            10 World   11 Hypno
 //  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
 //  out rather than running them back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
 // ===================================================================
-static int viewOrder[] = { 8, 0, 7, 2, 1, 3, 4, 10, 5, 6, 9 };
+static int viewOrder[] = { 8, 0, 7, 2, 1, 3, 11, 4, 10, 5, 6, 9 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -2286,6 +2288,110 @@ static void animWorldRing(float t) {
 }
 
 // ======================================================================
+// 11 - HYPNO EYE (ported from HypnoEye/)
+//      Op-art eye: black pupil, concentric rings, and bands that hug the
+//      lid before flattening out towards the edges.
+//      Nothing is drawn curve by curve. Every pixel works out a phase and
+//      the band is black or white on its fractional part, so the whole
+//      drawing lives in how that phase is built: distance to the pupil
+//      inside the eye, distance to the lid outside it.
+//      That is what makes the gaze free - offsetting the pupil and adding
+//      a term in x tightens the rings on the side it looks at and opens
+//      them on the other, without moving a single curve.
+// ======================================================================
+#define HE_W_LENS   60.0f    // half-width: the corners sit at 64 +/- this
+#define HE_H_LENS   30.0f    // half-height in the middle
+#define HE_CORNER_P 1.6f     // 1 = sharp corner, above that it rounds off
+#define HE_R_PUPIL  17.0f
+#define HE_DUTY     0.18f    // >0 = white stroke fatter than the black gap
+#define HE_AA_GAIN  0.125f
+#define HE_PHASE_IN 0.5f     // so a white ring borders the pupil
+#define HE_GAZE_AMP 9.0f
+#define HE_GAZE_P1  11.0f    // two periods with no simple ratio, so the
+#define HE_GAZE_P2  7.3f     // wandering never visibly repeats
+#define HE_K_MAX    0.35f    // ring squeeze on the side being looked at
+#define HE_FLOW     4.0f     // px/s, outer bands travelling into the eye
+
+static const float hePitch[3] = { 9.0f, 6.5f, 12.0f };
+static uint16_t heGrey[32];
+// The lid depends on x alone and never moves, so its height and the slope
+// that goes with it are worked out once, column by column.
+static float heLensH[SCREEN_W];
+static float heLensInvG[SCREEN_W];
+
+static void initHypnoEye() {
+  for (int i = 0; i < 32; i++) {
+    uint8_t v = (uint8_t)(i * 255 / 31);
+    heGrey[i] = tft.color565(v, v, v);
+  }
+  for (int x = 0; x < SCREEN_W; x++) {
+    float u = (float)x + 0.5f - 64.0f;
+    float s = u / HE_W_LENS;
+    if (fabsf(s) < 1.0f) {
+      float base = 1.0f - s * s;
+      heLensH[x] = HE_H_LENS * powf(base, HE_CORNER_P);
+      float slope = HE_H_LENS * HE_CORNER_P * powf(base, HE_CORNER_P - 1.0f)
+                  * (-2.0f * u / (HE_W_LENS * HE_W_LENS));
+      heLensInvG[x] = 1.0f / sqrtf(1.0f + slope * slope);
+    } else {
+      heLensH[x] = 0.0f;
+      heLensInvG[x] = 1.0f;
+    }
+  }
+}
+
+static void animHypnoEye(float t) {
+  float gaze = HE_GAZE_AMP * (0.7f * sinf(TWO_PI * t / HE_GAZE_P1)
+                            + 0.3f * sinf(TWO_PI * t / HE_GAZE_P2));
+  float k  = HE_K_MAX * gaze / HE_GAZE_AMP;
+  float pupilX = 64.0f + gaze;
+
+  float pitch    = hePitch[variant[11]];
+  float invPitch = 1.0f / pitch;
+  float edge     = HE_AA_GAIN * pitch;
+  float flow     = HE_FLOW * t;
+
+  uint16_t *out = fb;
+  for (int y = 0; y < SCREEN_H; y++) {
+    float dyc = (float)y + 0.5f - 64.0f;
+    float ady = fabsf(dyc);
+    for (int x = 0; x < SCREEN_W; x++) {
+      float s, invGrad, pupil = 1.0f;
+
+      if (ady <= heLensH[x]) {
+        float dx = (float)x + 0.5f - pupilX;
+        float r  = sqrtf(dx * dx + dyc * dyc);
+        if (r < 0.01f) r = 0.01f;
+        float invR = 1.0f / r;
+        float b  = r + k * dx;
+        float gx = dx * invR + k;
+        float gy = dyc * invR;
+        invGrad = 1.0f / sqrtf(gx * gx + gy * gy);
+        s = (b - HE_R_PUPIL) * invPitch + HE_PHASE_IN;
+        pupil = (b - HE_R_PUPIL) * invGrad;     // pupil edge softened over a pixel
+      } else {
+        invGrad = heLensInvG[x];
+        s = (ady - heLensH[x] + flow) * invPitch;
+      }
+
+      // A triangle wave rather than a square one: its slope hands us the
+      // anti-aliasing for free, and where the bands crowd tighter than the
+      // screen can hold it sags towards grey instead of breaking into moire.
+      float fr  = s - floorf(s);
+      float tri = 1.0f - 2.0f * fabsf(2.0f * fr - 1.0f);
+      float v   = 0.5f + (tri + HE_DUTY) * edge * invGrad;
+      if (v < 0.0f) v = 0.0f; else if (v > 1.0f) v = 1.0f;
+      if (pupil < 1.0f) {
+        if (pupil < 0.0f) pupil = 0.0f;
+        v *= pupil;
+      }
+      *out++ = heGrey[(int)(v * 31.0f + 0.5f)];
+    }
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -2305,6 +2411,7 @@ static void initAnim(int idx) {
       break;
     case 9: initTunnel(); break;
     case 10: initWorldRing(); break;
+    case 11: initHypnoEye(); break;
     default: break;
   }
   Serial.printf("anim %d\n", idx);
@@ -2330,6 +2437,7 @@ void setup() {
   variant[6] = 0;   // SphereColor: flowing colour-wave variant by default
   variant[7] = 0;   // Scan: medium contour density
   variant[10] = 0;  // World: graticule and continents together
+  variant[11] = 0;  // Hypno: medium band weight
 
   btnLeft.attachClick([]() {                 // next view in the schedule
     slot = (slot + 1) % N_VIEWS;
@@ -2368,6 +2476,7 @@ void loop() {
     case 8: animEye(dt);           break;
     case 9: animTunnel(dt);        break;
     case 10: animWorldRing(animTime); break;
+    case 11: animHypnoEye(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {
