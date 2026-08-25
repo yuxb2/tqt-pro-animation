@@ -32,10 +32,19 @@ tient donc dans la façon de construire la phase :
 - **en dehors** : phase = distance à la paupière, décalée dans le temps. Des
   bandes parallèles au bord de l'œil, qui glissent vers lui.
 
-C'est ce qui rend le regard presque gratuit. Décaler la pupille et ajouter un
-terme `k·dx` à la phase suffit : du côté visé la phase avance plus vite, donc
-les anneaux s'y resserrent, et de l'autre côté ils s'écartent. Aucune courbe à
-replacer.
+C'est ce qui rend le regard presque gratuit. Décaler la pupille et pencher la
+phase suffit : du côté visé elle avance plus vite, donc les anneaux s'y
+resserrent, et de l'autre côté ils s'écartent. Aucune courbe à replacer.
+
+**Le penchement est accroché au bord de la pupille** — nul là-bas, croissant
+vers l'extérieur. C'est ce qui fait que rien ne bouge tant que la pupille ne
+bouge pas : le resserrement est la conséquence du déplacement, pas un effet
+qui vit sa vie. Sans cet ancrage, l'anneau collé à la pupille glisse autour
+d'elle et on voit les cercles se déformer d'eux-mêmes.
+
+**La paupière est tracée à part.** C'est le seul trait qui ne bouge jamais :
+un trait blanc, encadré d'une épaule noire pour qu'il ne se fonde pas dans une
+bande blanche voisine. Les bandes qui dérivent vers l'œil viennent y mourir.
 
 Deux conséquences visibles :
 
@@ -68,15 +77,20 @@ doucement vers le gris au lieu de partir en moiré.
 | `PITCH_MID` / `_FINE` / `_WIDE` | `9` / `6.5` / `12` | épaisseur d'une bande noire + une blanche, en pixels. Le bouton gauche passe de l'une à l'autre. |
 | `DUTY` | `0.18` | équilibre noir / blanc. `0` = parts égales, positif = trait blanc plus épais. |
 | `AA_GAIN` | `0.125` | netteté du bord. Plus bas = plus flou ; plus haut = plus tranchant, mais le moiré revient dans les pointes. |
-| `PHASE_IN` | `0.5` | cale la phase pour qu'un anneau **blanc** borde la pupille. Change-la pour un liseré noir. |
+| `LID_W` | `0.16` | demi-épaisseur du trait de paupière, en fraction de `PITCH`. |
+| `LID_GAP` | `0.16` | épaule noire de chaque côté du trait. À `0` il se fond dans les bandes voisines et cesse de se lire. |
+
+> Le calage qui fait buter le premier anneau contre la pupille sur toute sa
+> largeur est déduit de `DUTY`, il n'y a rien à régler pour ça. Si tu changes
+> `DUTY`, le premier anneau reste correct.
 
 ### Le mouvement
 
 | Constante | Défaut | Effet |
 | --- | --- | --- |
-| `GAZE_AMP` | `9.0` | débattement de la pupille, en pixels. |
+| `GAZE_AMP` | `5.0` | débattement de la pupille, en pixels. Volontairement petit : le mouvement doit se remarquer sans qu'on le regarde. |
 | `GAZE_P1` / `GAZE_P2` | `11.0` / `7.3` | les deux périodes du va-et-vient, en secondes. **Garde un rapport non entier** entre les deux, sinon le regard boucle visiblement. |
-| `K_MAX` | `0.35` | resserrement des anneaux du côté regardé. `0` = la pupille se déplace sans déformer les anneaux. Ne dépasse pas `0.8`, au-delà la phase se replie et le motif se casse. |
+| `K_MAX` | `0.22` | resserrement des anneaux du côté regardé. `0` = la pupille se déplace sans déformer les anneaux. Au-delà de `0.5` le motif se met à onduler tout seul et on perd le lien avec la pupille. |
 | `FLOW` | `4.0` | vitesse des bandes extérieures vers l'œil, en px/s. Négatif = elles sortent de l'œil au lieu d'y rentrer. |
 
 ---

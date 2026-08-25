@@ -2305,11 +2305,12 @@ static void animWorldRing(float t) {
 #define HE_R_PUPIL  17.0f
 #define HE_DUTY     0.18f    // >0 = white stroke fatter than the black gap
 #define HE_AA_GAIN  0.125f
-#define HE_PHASE_IN 0.5f     // so a white ring borders the pupil
-#define HE_GAZE_AMP 9.0f
+#define HE_LID_W    0.16f    // lid stroke half-thickness, in pitches
+#define HE_LID_GAP  0.16f    // black shoulder each side of that stroke
+#define HE_GAZE_AMP 5.0f
 #define HE_GAZE_P1  11.0f    // two periods with no simple ratio, so the
 #define HE_GAZE_P2  7.3f     // wandering never visibly repeats
-#define HE_K_MAX    0.35f    // ring squeeze on the side being looked at
+#define HE_K_MAX    0.22f    // ring squeeze on the side being looked at
 #define HE_FLOW     4.0f     // px/s, outer bands travelling into the eye
 
 static const float hePitch[3] = { 9.0f, 6.5f, 12.0f };
@@ -2350,6 +2351,11 @@ static void animHypnoEye(float t) {
   float invPitch = 1.0f / pitch;
   float edge     = HE_AA_GAIN * pitch;
   float flow     = HE_FLOW * t;
+  float lidW     = HE_LID_W * pitch;
+  float lidGap   = HE_LID_GAP * pitch;
+  // Start of the white stroke: the first ring then butts against the pupil at
+  // full width instead of being sliced in half by it.
+  float phaseIn  = 0.5f - (1.0f + HE_DUTY) * 0.25f;
 
   uint16_t *out = fb;
   for (int y = 0; y < SCREEN_H; y++) {
@@ -2362,12 +2368,15 @@ static void animHypnoEye(float t) {
         float dx = (float)x + 0.5f - pupilX;
         float r  = sqrtf(dx * dx + dyc * dyc);
         if (r < 0.01f) r = 0.01f;
-        float invR = 1.0f / r;
-        float b  = r + k * dx;
-        float gx = dx * invR + k;
-        float gy = dyc * invR;
+        float invR  = 1.0f / r;
+        float invR3 = invR * invR * invR;
+        // The squeeze is pinned to the pupil edge: zero there, growing
+        // outward. The rings only move because the pupil does.
+        float b  = r + k * dx * (1.0f - HE_R_PUPIL * invR);
+        float gx = dx * invR + k * (1.0f - HE_R_PUPIL * dyc * dyc * invR3);
+        float gy = dyc * invR + k * HE_R_PUPIL * dx * dyc * invR3;
         invGrad = 1.0f / sqrtf(gx * gx + gy * gy);
-        s = (b - HE_R_PUPIL) * invPitch + HE_PHASE_IN;
+        s = (b - HE_R_PUPIL) * invPitch + phaseIn;
         pupil = (b - HE_R_PUPIL) * invGrad;     // pupil edge softened over a pixel
       } else {
         invGrad = heLensInvG[x];
@@ -2384,6 +2393,16 @@ static void animHypnoEye(float t) {
       if (pupil < 1.0f) {
         if (pupil < 0.0f) pupil = 0.0f;
         v *= pupil;
+      }
+
+      // The one line that never moves: a white stroke kept legible by a black
+      // shoulder each side, which is what the drifting bands die against.
+      float dl = fabsf(ady - heLensH[x]) * heLensInvG[x];
+      float shoulder = lidW + lidGap - dl;
+      if (shoulder > 0.0f) {
+        v *= 1.0f - (shoulder > 1.0f ? 1.0f : shoulder);
+        float white = lidW - dl;
+        if (white > 0.0f) v = fmaxf(v, white > 1.0f ? 1.0f : white);
       }
       *out++ = heGrey[(int)(v * 31.0f + 0.5f)];
     }

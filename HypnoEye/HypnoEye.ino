@@ -11,9 +11,14 @@
  *   - dans l'œil   : phase = distance à la pupille, penchée par le regard,
  *   - en dehors    : phase = distance à la paupière, décalée dans le temps.
  *
- * C'est ce qui rend le regard gratuit : décaler la pupille vers la droite et
- * ajouter un terme en x resserre les anneaux à droite et les écarte à gauche,
- * sans avoir à replacer une seule courbe.
+ * C'est ce qui rend le regard presque gratuit : décaler la pupille et pencher
+ * la phase suffit à resserrer les anneaux du côté visé et à les écarter de
+ * l'autre, sans replacer une seule courbe. Ce penchement est accroché au bord
+ * de la pupille — nul là-bas, croissant vers l'extérieur — pour que rien ne
+ * bouge tant que la pupille ne bouge pas.
+ *
+ * La paupière, elle, est tracée à part : c'est le seul trait qui reste en
+ * place pendant que tout le reste dérive vers elle.
  *
  * Libs : TFT_eSPI (version LilyGO du dépôt, Setup211) — rien d'autre.
  *
@@ -42,13 +47,14 @@
 #define PITCH_WIDE 12.0f
 #define DUTY       0.18f    // >0 = trait blanc plus épais que le noir
 #define AA_GAIN    0.125f   // douceur du bord ; plus bas = plus flou
-#define PHASE_IN   0.5f     // pour qu'un anneau blanc borde la pupille
+#define LID_W      0.16f    // demi-épaisseur du trait de paupière, en PITCH
+#define LID_GAP    0.16f    // épaule noire de chaque côté du trait
 
 // ---- Le regard ----------------------------------------------
-#define GAZE_AMP   9.0f     // débattement de la pupille, en pixels
+#define GAZE_AMP   5.0f     // débattement de la pupille, en pixels
 #define GAZE_P1    11.0f    // deux périodes sans rapport simple, pour que
 #define GAZE_P2    7.3f     // le va-et-vient ne se répète pas à l'œil
-#define K_MAX      0.35f    // resserrement des anneaux du côté regardé
+#define K_MAX      0.22f    // resserrement des anneaux du côté regardé
 
 // ---- Le flux ------------------------------------------------
 #define FLOW       4.0f     // px/s ; les bandes extérieures rentrent vers l'œil
@@ -128,6 +134,11 @@ static void drawEye(float t) {
   float invPitch = 1.0f / pitch;
   float edge     = AA_GAIN * pitch;   // (tri + DUTY) * edge / gradient
   float flow     = FLOW * flowT;
+  float lidW     = LID_W * pitch;
+  float lidGap   = LID_GAP * pitch;
+  // Début du trait blanc : le premier anneau vient alors buter contre la
+  // pupille sur toute sa largeur, au lieu d'être coupé en deux par elle.
+  float phaseIn  = 0.5f - (1.0f + DUTY) * 0.25f;
 
   uint16_t *out = fb;
   for (int y = 0; y < SCREEN_H; y++) {
@@ -137,18 +148,21 @@ static void drawEye(float t) {
       float s, invGrad, pupil = 1.0f;
 
       if (ady <= lensH[x]) {
-        // Dans l'œil : anneaux sur la pupille. Le terme en k*dx est le regard :
-        // il accélère la phase du côté visé, donc y resserre les anneaux.
+        // Dans l'œil : anneaux sur la pupille.
         float dx = (float)x + 0.5f - px;
         float r  = sqrtf(dx * dx + dyc * dyc);
         if (r < 0.01f) r = 0.01f;
-        float invR = 1.0f / r;
-        float b  = r + k * dx;
-        float gx = dx * invR + k;
-        float gy = dyc * invR;
+        float invR  = 1.0f / r;
+        float invR3 = invR * invR * invR;
+        // Le resserrement est accroché au bord de la pupille : nul là-bas,
+        // il grandit vers l'extérieur. Les anneaux ne bougent donc que parce
+        // que la pupille bouge, jamais d'eux-mêmes.
+        float b  = r + k * dx * (1.0f - R_PUPIL * invR);
+        float gx = dx * invR + k * (1.0f - R_PUPIL * dyc * dyc * invR3);
+        float gy = dyc * invR + k * R_PUPIL * dx * dyc * invR3;
         invGrad = 1.0f / sqrtf(gx * gx + gy * gy);
-        s = (b - R_PUPIL) * invPitch + PHASE_IN;
-        pupil = (b - R_PUPIL) * invGrad;      // bord adouci sur un pixel
+        s = (b - R_PUPIL) * invPitch + phaseIn;
+        pupil = (b - R_PUPIL) * invGrad;       // bord adouci sur un pixel
       } else {
         // Dehors : bandes parallèles à la paupière, qui glissent vers elle.
         invGrad = lensInvG[x];
@@ -165,6 +179,17 @@ static void drawEye(float t) {
       if (pupil < 1.0f) {
         if (pupil < 0.0f) pupil = 0.0f;
         v *= pupil;
+      }
+
+      // La seule ligne qui ne bouge jamais : un trait blanc, tenu lisible par
+      // une épaule noire de chaque côté, contre laquelle viennent mourir les
+      // bandes qui dérivent vers l'œil.
+      float dl = fabsf(ady - lensH[x]) * lensInvG[x];
+      float shoulder = lidW + lidGap - dl;
+      if (shoulder > 0.0f) {
+        v *= 1.0f - (shoulder > 1.0f ? 1.0f : shoulder);
+        float white = lidW - dl;
+        if (white > 0.0f) v = fmaxf(v, white > 1.0f ? 1.0f : white);
       }
       *out++ = greyLut[(int)(v * 31.0f + 0.5f)];
     }
