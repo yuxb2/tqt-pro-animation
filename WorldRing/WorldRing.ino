@@ -52,7 +52,7 @@
 #define ORBIT_R        49.0f
 #define ORBIT_SQUASH   0.28f      // 0 = vu par la tranche, 1 = vu de face
 #define ORBIT_ROLL0    -22.0f     // inclinaison de départ, en degrés
-#define ORBIT_PREC_DPS 6.0f       // précession, °/s
+#define ORBIT_PREC_DPS -6.0f      // précession, °/s ; signe = sens, comme TEXT_SPIN_DPS
 
 // ---- Rendu --------------------------------------------------
 #define TARGET_FPS     30

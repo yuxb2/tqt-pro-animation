@@ -2100,7 +2100,7 @@ static void animTunnel(float dt) {
 #define WR_ORBIT_R      49.0f
 #define WR_ORBIT_SQUASH 0.28f
 #define WR_ORBIT_ROLL0  (-22.0f)
-#define WR_ORBIT_PREC   6.0f     // deg/s of precession
+#define WR_ORBIT_PREC   (-6.0f)  // deg/s of precession, opposite the text ring
 #define WR_TEXT_R  57.0f
 #define WR_TEXT_SPIN (-6.0f)     // deg/s, negative = counter-clockwise
 #define WR_TEXT    "THE WORLD IS WATCHING\x07"   // \x07 is the diamond separator

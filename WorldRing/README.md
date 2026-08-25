@@ -89,7 +89,7 @@ Celui du logo, à ne pas confondre avec l'anneau de texte.
 | `SHOW_ORBIT` | `1` | `0` pour l'enlever (rendu plus proche de la vidéo). |
 | `ORBIT_R` | `49.0` | rayon. Coincé entre le globe (38) et le texte (~53 au bord intérieur). |
 | `ORBIT_SQUASH` | `0.28` | `0` = vu par la tranche, `1` = cercle de face. |
-| `ORBIT_PREC_DPS` | `6.0` | précession, °/s. `0` pour le figer comme sur le logo. |
+| `ORBIT_PREC_DPS` | `-6.0` | précession, °/s. Même convention de signe que `TEXT_SPIN_DPS` : négatif = sens horaire ici, donc l'anneau et le texte tournent en sens contraires. `0` pour le figer comme sur le logo. |
 
 ---
 
