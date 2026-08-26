@@ -42,13 +42,13 @@
 #define R_PUPIL    17.0f    // rayon de la pupille
 
 // ---- Les bandes ---------------------------------------------
-#define PITCH_MID  9.0f     // une bande noire + une blanche, en pixels
-#define PITCH_FINE 6.5f
-#define PITCH_WIDE 12.0f
+#define PITCH_MID  13.0f    // une bande noire + une blanche, en pixels
+#define PITCH_FINE 9.0f
+#define PITCH_WIDE 16.0f
 #define DUTY       0.18f    // >0 = trait blanc plus épais que le noir
 #define AA_GAIN    0.125f   // douceur du bord ; plus bas = plus flou
-#define LID_W      0.16f    // demi-épaisseur du trait de paupière, en PITCH
-#define LID_GAP    0.16f    // épaule noire de chaque côté du trait
+// Le trait de paupière et son épaule noire se déduisent de DUTY : la paupière
+// porte donc exactement le poids de tous les autres traits de l'image.
 
 // ---- Le regard ----------------------------------------------
 #define GAZE_AMP   5.0f     // débattement de la pupille, en pixels
@@ -57,7 +57,7 @@
 #define K_MAX      0.22f    // resserrement des anneaux du côté regardé
 
 // ---- Le flux ------------------------------------------------
-#define FLOW       4.0f     // px/s ; les bandes extérieures rentrent vers l'œil
+#define FLOW       7.0f     // px/s ; les bandes extérieures rentrent vers l'œil
 
 // ---- Rendu ---------------------------------------------------
 #define TARGET_FPS 30
@@ -134,11 +134,12 @@ static void drawEye(float t) {
   float invPitch = 1.0f / pitch;
   float edge     = AA_GAIN * pitch;   // (tri + DUTY) * edge / gradient
   float flow     = FLOW * flowT;
-  float lidW     = LID_W * pitch;
-  float lidGap   = LID_GAP * pitch;
+  float halfW    = (1.0f + DUTY) * 0.25f;   // demi-largeur d'un trait blanc
+  float lidW     = halfW * pitch;           // la paupière est un trait comme un autre
+  float lidGap   = (0.5f - halfW) * pitch;  // et garde l'écart noir habituel
   // Début du trait blanc : le premier anneau vient alors buter contre la
   // pupille sur toute sa largeur, au lieu d'être coupé en deux par elle.
-  float phaseIn  = 0.5f - (1.0f + DUTY) * 0.25f;
+  float phaseIn  = 0.5f - halfW;
 
   uint16_t *out = fb;
   for (int y = 0; y < SCREEN_H; y++) {

@@ -46,6 +46,11 @@ d'elle et on voit les cercles se déformer d'eux-mêmes.
 un trait blanc, encadré d'une épaule noire pour qu'il ne se fonde pas dans une
 bande blanche voisine. Les bandes qui dérivent vers l'œil viennent y mourir.
 
+Son épaisseur et celle de son épaule sont **déduites de `DUTY`**, pas réglées
+à la main : la paupière porte donc exactement le poids d'un trait blanc
+ordinaire et garde l'écart noir habituel de chaque côté. Elle se lit comme
+tous les autres traits, à ceci près qu'elle ne bouge pas.
+
 Deux conséquences visibles :
 
 **Les coins.** Là où la paupière rejoint l'horizontale, l'angle est réglé par
@@ -74,15 +79,13 @@ doucement vers le gris au lieu de partir en moiré.
 
 | Constante | Défaut | Effet |
 | --- | --- | --- |
-| `PITCH_MID` / `_FINE` / `_WIDE` | `9` / `6.5` / `12` | épaisseur d'une bande noire + une blanche, en pixels. Le bouton gauche passe de l'une à l'autre. |
+| `PITCH_MID` / `_FINE` / `_WIDE` | `13` / `9` / `16` | épaisseur d'une bande noire + une blanche, en pixels. Le bouton gauche passe de l'une à l'autre. Au-delà de 16 il ne reste presque plus d'anneau entre la pupille et la paupière. |
 | `DUTY` | `0.18` | équilibre noir / blanc. `0` = parts égales, positif = trait blanc plus épais. |
 | `AA_GAIN` | `0.125` | netteté du bord. Plus bas = plus flou ; plus haut = plus tranchant, mais le moiré revient dans les pointes. |
-| `LID_W` | `0.16` | demi-épaisseur du trait de paupière, en fraction de `PITCH`. |
-| `LID_GAP` | `0.16` | épaule noire de chaque côté du trait. À `0` il se fond dans les bandes voisines et cesse de se lire. |
-
-> Le calage qui fait buter le premier anneau contre la pupille sur toute sa
-> largeur est déduit de `DUTY`, il n'y a rien à régler pour ça. Si tu changes
-> `DUTY`, le premier anneau reste correct.
+> Deux choses se déduisent de `DUTY` et n'ont donc pas de réglage propre :
+> l'épaisseur du trait de paupière (pour qu'elle égale celle des autres
+> traits), et le calage qui fait buter le premier anneau contre la pupille sur
+> toute sa largeur. Si tu changes `DUTY`, les deux restent justes.
 
 ### Le mouvement
 
@@ -91,7 +94,12 @@ doucement vers le gris au lieu de partir en moiré.
 | `GAZE_AMP` | `5.0` | débattement de la pupille, en pixels. Volontairement petit : le mouvement doit se remarquer sans qu'on le regarde. |
 | `GAZE_P1` / `GAZE_P2` | `11.0` / `7.3` | les deux périodes du va-et-vient, en secondes. **Garde un rapport non entier** entre les deux, sinon le regard boucle visiblement. |
 | `K_MAX` | `0.22` | resserrement des anneaux du côté regardé. `0` = la pupille se déplace sans déformer les anneaux. Au-delà de `0.5` le motif se met à onduler tout seul et on perd le lien avec la pupille. |
-| `FLOW` | `4.0` | vitesse des bandes extérieures vers l'œil, en px/s. Négatif = elles sortent de l'œil au lieu d'y rentrer. |
+| `FLOW` | `7.0` | vitesse des bandes extérieures vers l'œil, en px/s. Négatif = elles sortent de l'œil au lieu d'y rentrer. |
+
+> Ce qui se perçoit comme « la vitesse », c'est le nombre de bandes qui
+> passent par seconde, soit `FLOW / PITCH`. En épaississant les bandes sans
+> toucher à `FLOW`, l'animation paraît donc **ralentir**. Monte les deux
+> ensemble si tu veux garder la même sensation.
 
 ---
 

@@ -2305,15 +2305,15 @@ static void animWorldRing(float t) {
 #define HE_R_PUPIL  17.0f
 #define HE_DUTY     0.18f    // >0 = white stroke fatter than the black gap
 #define HE_AA_GAIN  0.125f
-#define HE_LID_W    0.16f    // lid stroke half-thickness, in pitches
-#define HE_LID_GAP  0.16f    // black shoulder each side of that stroke
+// The lid stroke and its black shoulder are derived from HE_DUTY, so the lid
+// carries exactly the weight of every other white stroke in the picture.
 #define HE_GAZE_AMP 5.0f
 #define HE_GAZE_P1  11.0f    // two periods with no simple ratio, so the
 #define HE_GAZE_P2  7.3f     // wandering never visibly repeats
 #define HE_K_MAX    0.22f    // ring squeeze on the side being looked at
-#define HE_FLOW     4.0f     // px/s, outer bands travelling into the eye
+#define HE_FLOW     7.0f     // px/s, outer bands travelling into the eye
 
-static const float hePitch[3] = { 9.0f, 6.5f, 12.0f };
+static const float hePitch[3] = { 13.0f, 9.0f, 16.0f };
 static uint16_t heGrey[32];
 // The lid depends on x alone and never moves, so its height and the slope
 // that goes with it are worked out once, column by column.
@@ -2351,11 +2351,12 @@ static void animHypnoEye(float t) {
   float invPitch = 1.0f / pitch;
   float edge     = HE_AA_GAIN * pitch;
   float flow     = HE_FLOW * t;
-  float lidW     = HE_LID_W * pitch;
-  float lidGap   = HE_LID_GAP * pitch;
+  float halfW    = (1.0f + HE_DUTY) * 0.25f;  // half-width of a white stroke
+  float lidW     = halfW * pitch;             // the lid is a stroke like any other
+  float lidGap   = (0.5f - halfW) * pitch;    // and keeps the usual black gap
   // Start of the white stroke: the first ring then butts against the pupil at
   // full width instead of being sliced in half by it.
-  float phaseIn  = 0.5f - (1.0f + HE_DUTY) * 0.25f;
+  float phaseIn  = 0.5f - halfW;
 
   uint16_t *out = fb;
   for (int y = 0; y < SCREEN_H; y++) {
