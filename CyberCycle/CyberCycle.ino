@@ -43,6 +43,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <Preferences.h>
 #include <time.h>
 #include "OneButton.h"
 #include "pb_map.h"
@@ -112,6 +113,22 @@ float animTime = 0;                        // seconds since this animation began
 // The GitHub Action replaces this value with the release tag before building.
 #define FW_VERSION "0.0.0"
 #define OTA_MANIFEST_URL "https://raw.githubusercontent.com/yuxb2/tqt-pro-animation/firmware/ota-manifest.txt"
+
+// Check-in: once per version, the board fetches a tiny file attached to that
+// version's Release. GitHub counts downloads of Release assets and exposes the
+// tally through its API, so the count of that file is the number of boards
+// running the version - with no credential anywhere in this binary, which is
+// published for anyone to download.
+//
+// This is deliberately NOT the firmware download. That one stays on
+// raw.githubusercontent.com with its pinned root: github.com hands out
+// certificates from a different authority, and pinning a second root would
+// mean a future rotation could kill OTA on every board in the field, with USB
+// as the only way back. The check-in instead runs unverified on a path where
+// failing changes nothing - see fleetCheckIn().
+#define CHECKIN_URL_PREFIX "https://github.com/yuxb2/tqt-pro-animation/releases/download/v"
+#define CHECKIN_URL_SUFFIX "/checkin.bin"
+#define CHECKIN_TIMEOUT_MS 8000
 #define OTA_CHECK_INTERVAL_MS (24UL * 60UL * 60UL * 1000UL)
 #define OTA_WIFI_TIMEOUT_MS 12000UL
 
@@ -212,6 +229,48 @@ static bool otaSyncClock() {
   return time(nullptr) >= 1700000000;
 }
 
+// Announce, exactly once per version, that this board is running it.
+//
+// The reply is discarded and nothing is sent, so the only thing at stake here
+// is the accuracy of a counter - which is why this one request runs without
+// certificate verification. That keeps the check-in immune to GitHub rotating
+// its certificate authority. The path that installs code keeps its pinned
+// root; that line is not crossed.
+//
+// Note the redirect must be followed: github.com answers 302 and the counter
+// only moves once the CDN has actually served the bytes.
+static void fleetCheckIn() {
+  if (strcmp(FW_VERSION, "0.0.0") == 0) return;   // unstamped local build
+
+  Preferences prefs;
+  if (!prefs.begin("fleet", false)) return;
+  if (prefs.getString("seen", "") == FW_VERSION) {   // already announced
+    prefs.end();
+    return;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setConnectTimeout(CHECKIN_TIMEOUT_MS);
+  http.setTimeout(CHECKIN_TIMEOUT_MS);
+
+  String url = String(CHECKIN_URL_PREFIX) + FW_VERSION + CHECKIN_URL_SUFFIX;
+  if (http.begin(client, url)) {
+    int code = http.GET();
+    if (code == HTTP_CODE_OK) {
+      prefs.putString("seen", FW_VERSION);
+      Serial.printf("OTA: checked in for %s\n", FW_VERSION);
+    } else {
+      // Left unrecorded on purpose, so the next boot tries again.
+      Serial.printf("OTA: check-in failed (%d)\n", code);
+    }
+    http.end();
+  }
+  prefs.end();
+}
+
 static void otaCheckForUpdate() {
   // Built here rather than kept around: it holds a copy of every SSID and
   // password, and between two checks that is memory the animations can use.
@@ -241,23 +300,29 @@ static void otaCheckForUpdate() {
     return;
   }
 
-  WiFiClientSecure manifestClient;
-  manifestClient.setCACert(OTA_ROOT_CA);
-  HTTPClient http;
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(manifestClient, OTA_MANIFEST_URL)) {
-    Serial.println("OTA: manifest connection failed");
-    WiFi.disconnect(); WiFi.mode(WIFI_OFF);
-    return;
+  // Scoped so this TLS client is destroyed before the check-in opens its own.
+  // Two at once would peak higher than the heap left over by the animations.
+  String manifest;
+  {
+    WiFiClientSecure manifestClient;
+    manifestClient.setCACert(OTA_ROOT_CA);
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    if (!http.begin(manifestClient, OTA_MANIFEST_URL)) {
+      Serial.println("OTA: manifest connection failed");
+      WiFi.disconnect(); WiFi.mode(WIFI_OFF);
+      return;
+    }
+    int status = http.GET();
+    if (status == HTTP_CODE_OK) manifest = http.getString();
+    http.end();
   }
-  int status = http.GET();
-  String manifest = (status == HTTP_CODE_OK) ? http.getString() : String();
-  http.end();
 
   String version = otaManifestValue(manifest, "version");
   String url = otaManifestValue(manifest, "url");
   if (version.length() == 0 || url.length() == 0 || !otaIsNewer(version, FW_VERSION)) {
     Serial.printf("OTA: already current (%s)\n", FW_VERSION);
+    fleetCheckIn();          // running the published version: say so, once
     WiFi.disconnect(); WiFi.mode(WIFI_OFF);
     return;
   }

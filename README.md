@@ -100,6 +100,8 @@ Vérifie que la compilation est verte dans l'onglet **Actions** avant d'éteindr
 l'ordi. Si elle est rouge, l'ancienne version reste en place sur le T-QT : rien
 n'est cassé.
 
+Pour savoir quand les cartes ont réellement pris cette version, voir §9.
+
 ## 4. Ce que fait le T-QT
 
 - Au démarrage, il lance l'animation tout de suite.
@@ -188,3 +190,54 @@ Attention : deux cartes ESP32-S3 sont branchées sur le Mac. Celle de 4 Mo est l
 T-QT Pro ; l'autre en affiche 16 Mo et n'a rien à voir avec ce projet. Le numéro
 de port change d'un branchement à l'autre, donc vérifie toujours la taille de
 flash avant de téléverser.
+
+## 9. Savoir si les cartes ont pris la mise à jour
+
+Après avoir publié, tu veux savoir si le message est arrivé. Le tableau est ici :
+
+**https://github.com/yuxb2/tqt-pro-animation/blob/status/STATUS.md**
+
+Une ligne par version, avec le nombre de cartes qui l'ont confirmée. Il est
+rafraîchi toutes les demi-heures par le workflow `fleet-status.yml`, et tu peux
+le forcer depuis l'onglet Actions. Ou en une commande :
+
+```bash
+gh api repos/yuxb2/tqt-pro-animation/releases/tags/v1.0.9 --jq '.assets[] | select(.name=="checkin.bin") | .download_count'
+```
+
+### Comment ça marche
+
+Chaque Release embarque un fichier de trois octets, `checkin.bin`. Une carte
+qui démarre sur une version qu'elle n'a pas encore signalée le télécharge une
+fois, puis note la version en mémoire persistante et ne le redemande plus.
+GitHub compte les téléchargements des fichiers de Release et publie ce compte
+par son API : **ce compteur est le nombre de cartes qui tournent sur la
+version**.
+
+Il n'y a donc **aucun identifiant dans le firmware**, ce qui compte beaucoup :
+le binaire est publié pour que n'importe qui puisse le télécharger, et tout
+jeton qu'on y aurait mis serait distribué avec.
+
+### Trois choses à savoir
+
+**Le compteur retarde d'environ six minutes.** Mesuré. Une carte qui vient de
+redémarrer ne s'affiche pas tout de suite ; ce n'est pas un échec.
+
+**N'ouvre jamais `checkin.bin` dans un navigateur.** Ça compterait comme une
+carte et fausserait le relevé. C'est le seul geste à éviter.
+
+**Le check-in n'est pas sur le même chemin que l'OTA, exprès.** Le firmware
+se télécharge depuis `raw.githubusercontent.com`, dont le certificat est
+vérifié contre une racine épinglée. Le check-in, lui, part vers `github.com`,
+qui utilise une autre autorité de certification : l'épingler aussi ferait
+qu'une future rotation de certificat chez GitHub tuerait l'OTA sur toutes les
+cartes, sans autre recours que le câble USB. Le check-in tourne donc **sans
+vérification**, ce qui est sans conséquence — rien n'est envoyé, rien de la
+réponse n'est lu, le seul enjeu est l'exactitude d'un compteur. Le chemin qui
+installe du code, lui, garde sa vérification complète.
+
+### Si le parc change de taille
+
+Le tableau compare le compteur au nombre de cartes. Il est à 2 par défaut ;
+pour le changer, crée une variable de dépôt `FLEET_SIZE` (Settings → Secrets
+and variables → Actions → Variables).

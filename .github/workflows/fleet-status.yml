@@ -1,0 +1,81 @@
+name: Fleet status
+
+# Reads how many boards have confirmed each version and publishes the tally to
+# the `status` branch, as STATUS.md.
+#
+# Nothing here talks to the boards. Each board fetches checkin.bin once per
+# version; GitHub counts Release asset downloads and exposes the count through
+# its API. That count is the whole signal - which is why no credential of any
+# kind lives in the firmware.
+#
+# The count lags: measured at about six minutes between a download and the API
+# reflecting it. A board that has just rebooted will not show up immediately.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the tally
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          FLEET: ${{ vars.FLEET_SIZE || '2' }}
+        run: |
+          {
+            echo "# État du parc"
+            echo
+            echo "<!-- releve -->Relevé le $(date -u '+%d/%m/%Y à %H:%M') UTC · parc de $FLEET carte(s)"
+            echo
+            echo "| Version | Publiée | Confirmées | État |"
+            echo "| --- | --- | --- | --- |"
+            gh api "repos/$REPO/releases" --paginate --jq '
+              .[] | [
+                .tag_name,
+                (.published_at | sub("T"; " ") | sub("Z"; "")),
+                (([.assets[] | select(.name == "checkin.bin") | .download_count] | first) // -1)
+              ] | @tsv' \
+            | awk -F'\t' -v fleet="$FLEET" '
+                {
+                  n = $3 + 0
+                  if ($3 < 0)          { cell = "—";              state = "pas de check-in" }
+                  else if (n >= fleet) { cell = n "/" fleet;      state = "✅ livrée" }
+                  else if (n == 0)     { cell = "0/" fleet;       state = "⏳ aucune carte" }
+                  else                 { cell = n "/" fleet;      state = "⏳ en cours" }
+                  printf "| %s | %s | %s | %s |\n", $1, $2, cell, state
+                }'
+            echo
+            echo "Les versions antérieures à la mise en place du check-in n'ont pas de"
+            echo "fichier \`checkin.bin\` : elles restent à «—» pour toujours, c'est normal."
+          } > STATUS.md
+          cat STATUS.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to the status branch, if anything moved
+        run: |
+          # The timestamp changes every run; only a change in the table itself
+          # is worth a commit, otherwise the branch collects 48 a day.
+          git fetch origin status --depth=1 2>/dev/null || true
+          if git show origin/status:STATUS.md > /tmp/old.md 2>/dev/null \
+             && diff -q <(grep -v '<!-- releve -->' /tmp/old.md) \
+                        <(grep -v '<!-- releve -->' STATUS.md) > /dev/null; then
+            echo "Aucun changement, rien à publier."
+            exit 0
+          fi
+          cp STATUS.md /tmp/STATUS.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan status
+          git rm -rf --quiet .
+          cp /tmp/STATUS.md STATUS.md
+          git add STATUS.md
+          git commit -m "Fleet status $(date -u '+%Y-%m-%d %H:%M')"
+          git push --force origin status

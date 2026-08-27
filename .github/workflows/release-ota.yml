@@ -95,6 +95,11 @@ jobs:
             --libraries libraries \
             --output-dir build \
             CyberCycle
+          # The file each board fetches once to announce it is running this
+          # version. GitHub counts Release asset downloads, so its tally is the
+          # number of boards that have taken the update. Never open it in a
+          # browser: that would count as a board.
+          printf 'ok\n' > build/checkin.bin
           SIZE=$(stat -c%s build/CyberCycle.ino.bin)
           echo "firmware size: ${SIZE} bytes"
           if [ "$SIZE" -ge "$APP_PARTITION_BYTES" ]; then
@@ -125,4 +130,6 @@ jobs:
         with:
           name: CyberCycle ${{ github.ref_name }}
           generate_release_notes: true
-          files: build/CyberCycle.ino.bin
+          files: |
+            build/CyberCycle.ino.bin
+            build/checkin.bin
