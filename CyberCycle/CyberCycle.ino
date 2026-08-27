@@ -1,5 +1,6 @@
 /*
- * Cyber Cycle - thirteen cyberpunk animations on a 15-minute rotation
+ * Cyber Cycle - twelve cyberpunk animations on a 15-minute rotation,
+ * and a thirteenth kept off the list until it is wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -25,8 +26,9 @@
  *               wrapped in a phrase that runs twice around the screen
  *  11 Hypno     op-art eye: rings on a black pupil that tighten on the side
  *               it looks at, ringed by bands drifting in towards the lid
- *  12 Coucou    TEMPORARY - a hello turning about the centre in rainbow
- *               strokes, flown only to watch an OTA update land
+ *  12 ColorText a line of text turning about the centre in rainbow
+ *               strokes - write the message into CT_TEXT and put 12 in
+ *               viewOrder to fly it
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -94,13 +96,13 @@ static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
-//            10 World   11 Hypno  12 Coucou (temporary)
+//            10 World   11 Hypno  12 ColorText (off the list below)
 //  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
 //  out rather than running them back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
 // ===================================================================
-static int viewOrder[] = { 12, 8, 0, 7, 2, 1, 3, 11, 4, 10, 5, 6, 9 };
+static int viewOrder[] = { 7, 0, 8, 2, 1, 3, 11, 4, 10, 5, 6, 9 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -2479,37 +2481,39 @@ static void animHypnoEye(float t) {
 }
 
 // ======================================================================
-// 12 - COUCOU (temporary)
-//      A hello for the man who is not holding the board: one line of the
-//      World Ring's stroke font, turned about the centre as a rigid line
-//      rather than bent onto a circle, with the colour wheel running
-//      along it. It is here to be seen arriving over the air, and comes
-//      out again once it has been.
+// 12 - COLOR TEXT MESSAGE
+//      Whatever CT_TEXT says, turned about the centre with the colour
+//      wheel running along it a letter at a time. The lettering is the
+//      World Ring's stroke font, kept straight here instead of bent onto
+//      a circle, and the size is worked out from the length of the line,
+//      so the message is the only thing to change. The font is capitals
+//      only and carries no accents.
+//      This view is not in viewOrder: add 12 there to put it on screen.
 // ======================================================================
-#define CO_TEXT  "COUCOU PAPA ;)"
-#define CO_SPIN  26.0f     // deg/s, a full turn in about 14 s
-#define CO_HUE   0.17f     // turns of the colour wheel per second
-#define CO_HUE_N 0.065f    // and how much of it separates two letters
-#define CO_STEP  6         // the 5-wide cell plus one column of spacing
+#define CT_TEXT  "COUCOU PAPA ;)"
+#define CT_SPIN  26.0f     // deg/s, a full turn in about 14 s
+#define CT_HUE   0.17f     // turns of the colour wheel per second
+#define CT_HUE_N 0.065f    // and how much of it separates two letters
+#define CT_STEP  6         // the 5-wide cell plus one column of spacing
 
-static void animCoucou(float t) {
-  const char *s = CO_TEXT;
+static void animColorText(float t) {
+  const char *s = CT_TEXT;
   int len = strlen(s);
 
   // The line sweeps a disc as it turns, so it is the far corner - not the
   // width - that has to stay on the screen.
-  float halfW = 0.5f * ((len - 1) * CO_STEP + VF_W);
+  float halfW = 0.5f * ((len - 1) * CT_STEP + VF_W);
   float halfH = 0.5f * VF_H;
   float scale = 60.0f / sqrtf(halfW * halfW + halfH * halfH);
 
-  float a = CO_SPIN * DEG_TO_RAD * t;
+  float a = CT_SPIN * DEG_TO_RAD * t;
   float ca = cosf(a), sa = sinf(a);
 
   memset(fb, 0, sizeof(fb));
   for (int n = 0; n < len; n++) {
     uint16_t off = pgm_read_word(&VF_INDEX[(uint8_t)s[n]]);
     if (off == 0xFFFF) continue;
-    uint16_t col = scHsv(CO_HUE * t + CO_HUE_N * n, 1.0f);
+    uint16_t col = scHsv(CT_HUE * t + CT_HUE_N * n, 1.0f);
 
     const int8_t *p = &VF_STROKES[off];
     bool have = false;
@@ -2520,7 +2524,7 @@ static void animCoucou(float t) {
       if (gx == VF_END_POLY) { have = false; continue; }
       int8_t gy = (int8_t)pgm_read_byte(p++);
 
-      float u = ((float)(n * CO_STEP + gx) - halfW) * scale;
+      float u = ((float)(n * CT_STEP + gx) - halfW) * scale;
       float v = ((float)gy - halfH) * scale;
       float x = 64.0f + u * ca - v * sa;
       float y = 64.0f + u * sa + v * ca;
@@ -2620,7 +2624,7 @@ void loop() {
     case 9: animTunnel(dt);        break;
     case 10: animWorldRing(animTime); break;
     case 11: animHypnoEye(animTime); break;
-    case 12: animCoucou(animTime); break;
+    case 12: animColorText(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {

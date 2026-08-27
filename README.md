@@ -5,12 +5,14 @@ Animations pour LilyGo **T-QT Pro** (ESP32-S3, écran 128×128 GC9A01), avec mis
 
 Dépôt : https://github.com/yuxb2/tqt-pro-animation
 
-Le croquis publié est `CyberCycle/` : treize animations qui tournent 15 minutes
+Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
 chacune. Bouton gauche = animation suivante, bouton droit = variante.
 
-> La treizième, `Coucou`, est **temporaire** : un bonjour multicolore qui
-> tourne, posé en tête de liste pour voir une mise à jour OTA arriver. Elle
-> s'enlève en retirant `12` de `viewOrder`.
+> Une treizième attend hors liste : **`Color text message`** (vue 12), une
+> phrase multicolore qui tourne au milieu de l'écran. Écris le message dans
+> `CT_TEXT`, ajoute `12` à `viewOrder`, et elle passe comme les autres. La
+> taille se règle toute seule sur la longueur ; la font est en capitales et
+> ne connaît pas les accents.
 
 ---
 
