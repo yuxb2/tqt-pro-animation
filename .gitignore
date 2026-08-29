@@ -1,5 +1,5 @@
 .DS_Store
 .claude/
-CyberCycle/secrets.h
+CyberCycle/secrets.h*
 build/
 __pycache__/
