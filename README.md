@@ -6,13 +6,16 @@ Animations pour LilyGo **T-QT Pro** (ESP32-S3, écran 128×128 GC9A01), avec mis
 Dépôt : https://github.com/yuxb2/tqt-pro-animation
 
 Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
-chacune. Bouton gauche = animation suivante, bouton droit = variante.
+chacune, **`PixelSkull` en tête**. Bouton gauche = animation suivante, bouton
+droit = variante.
 
-> Une treizième attend hors liste : **`Color text message`** (vue 12), une
-> phrase multicolore qui tourne au milieu de l'écran. Écris le message dans
-> `CT_TEXT`, ajoute `12` à `viewOrder`, et elle passe comme les autres. La
-> taille se règle toute seule sur la longueur ; la font est en capitales et
-> ne connaît pas les accents.
+> Deux autres attendent hors liste, sans être supprimées du fichier. Il suffit
+> d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
+>
+> - **`Waves`** (vue 2), sortie du tour pour laisser la place à `PixelSkull`.
+> - **`Color text message`** (vue 12), une phrase multicolore qui tourne au
+>   milieu de l'écran. Écris le message dans `CT_TEXT` ; la taille se règle
+>   toute seule sur la longueur, et la font est en capitales sans accents.
 
 ---
 
@@ -136,8 +139,8 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
 
-Trois d'entre eux ont leur propre README, et sont **aussi** repris dans
-`CyberCycle/` (vues 7, 10 et 11) :
+Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7, 10, 11 et 13) :
 
 - `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
   de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
@@ -146,6 +149,38 @@ Trois d'entre eux ont leur propre README, et sont **aussi** repris dans
   coordonnées, comme si on auscultait un objet céleste.
 - `HypnoEye/` — œil op-art dont la pupille regarde à droite et à gauche en
   resserrant les anneaux du côté visé.
+- `PixelSkull/` — tête de mort en gros pixels qui rebondit sur les quatre
+  bords en claquant de la mâchoire, en noir et blanc.
+
+### Comment on fabrique une nouvelle animation
+
+**C'est la méthode à reprendre à chaque fois, et dans cet ordre.**
+
+1. **Le croquis autonome d'abord**, dans son propre dossier — jamais
+   directement dans `CyberCycle/`.
+
+2. **Un `preview.html` à côté**, dans le même dossier : le croquis porté en
+   JavaScript, avec un écran 128×128 et **un curseur par constante réglable**.
+   C'est ça le point important — l'animation se règle dans le navigateur, à
+   l'œil, sans reflasher la carte une seule fois. La page affiche aussi les
+   valeurs courantes sous la forme des `#define` du croquis, pour qu'il n'y ait
+   rien à recopier à la main.
+
+   L'aperçu doit exécuter **le même code** : mêmes constantes, même dessin,
+   mêmes formules. Un aperçu qui approxime ne sert à rien, puisqu'on choisit
+   les réglages dessus.
+
+3. **On regarde, on règle, on donne ses valeurs.** Elles repartent dans le
+   `.ino`, dans le `preview.html` et dans le README du dossier, pour que les
+   trois disent la même chose.
+
+4. **Et seulement ensuite** l'animation est reprise dans `CyberCycle/`, avec
+   un préfixe à elle sur toutes ses constantes (`SK_`, `HE_`, `WR_`…), et son
+   numéro ajouté à `viewOrder`.
+
+`PixelSkull/preview.html` est l'exemple de référence.
+
+---
 
 Les deux tables générées (`vecfont.h`, `world_map.h`) existent en double, dans
 `WorldRing/` et dans `CyberCycle/` : l'IDE Arduino ne compile que les fichiers
