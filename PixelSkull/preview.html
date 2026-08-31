@@ -1,0 +1,616 @@
+<title>PixelSkull</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* ---- 1 bit : pas de gris, pas d'arrondi, pas d'ombre. ---------------- */
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+    --screen-fg: #FFFFFF;
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-2:  1.5rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F;
+      --ink:   #F2F2EE;
+      --ink-2: #9A9AA2;
+      --rule:  #F2F2EE;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F;
+    --ink:   #F2F2EE;
+    --ink-2: #9A9AA2;
+    --rule:  #F2F2EE;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding: clamp(1.25rem, 4vw, 3rem) 1.25rem 5rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 46rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  /* ---- En-tête --------------------------------------------------------- */
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  h1 {
+    font-family: var(--bitmap);
+    font-weight: 400;
+    font-size: clamp(1.7rem, 7vw, var(--step-3));
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  header p { margin: 0; max-width: 34rem; color: var(--ink-2); }
+
+  /* ---- L'écran --------------------------------------------------------- */
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+
+  .device {
+    position: relative;
+    padding: 14px;
+    background: var(--screen-bg);
+    border: 1px solid var(--rule);
+    line-height: 0;
+  }
+  .device canvas {
+    display: block;
+    width: min(384px, 78vw);
+    height: auto;
+    aspect-ratio: 1;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+  }
+  .device .grid {
+    position: absolute;
+    inset: 14px;
+    pointer-events: none;
+    opacity: 0;
+    background-image:
+      repeating-linear-gradient(to right, rgba(255,255,255,.34) 0 1px, transparent 1px var(--cell)),
+      repeating-linear-gradient(to bottom, rgba(255,255,255,.34) 0 1px, transparent 1px var(--cell));
+  }
+  .device.show-grid .grid { opacity: 1; }
+
+  .caption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ---- Commandes ------------------------------------------------------- */
+  .panel {
+    border: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
+  }
+  .field:last-child { border-right: 0; }
+  .field .label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .field .label b {
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    padding: 0.4rem 0.3rem;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-right-width: 0;
+    cursor: pointer;
+  }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible,
+  input[type="range"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 1px;
+    background: var(--rule);
+    margin: 0.7rem 0;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--ink);
+    border: 0;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--ink);
+    border: 0; border-radius: 0;
+  }
+
+  /* ---- Sections -------------------------------------------------------- */
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 {
+    font-family: var(--bitmap);
+    font-weight: 400;
+    font-size: var(--step-1);
+    margin: 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule);
+    letter-spacing: 0.02em;
+  }
+  section p { margin: 0; max-width: 40rem; }
+  section p + p { margin-top: -0.3rem; }
+
+  .split { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+  .split canvas {
+    border: 1px solid var(--rule);
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+    width: 208px; height: 273px;
+    background: var(--screen-bg);
+  }
+  .split .legend { flex: 1 1 16rem; display: flex; flex-direction: column; gap: 0.8rem; }
+
+  pre {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    line-height: 1.7;
+    border: 1px solid var(--rule);
+    padding: 1rem 1.1rem;
+    margin: 0;
+    overflow-x: auto;
+    tab-size: 2;
+  }
+  code { font-family: var(--mono); font-size: 0.92em; }
+
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+
+  footer {
+    font-size: var(--step--1);
+    color: var(--ink-2);
+    border-top: 1px solid var(--rule);
+    padding-top: 1rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128</div>
+    <h1>PixelSkull</h1>
+    <p>Une tête de mort de seize pixels de côté, agrandie en gros carrés, qui rebondit
+       sur les quatre bords en claquant de la mâchoire. Deux couleurs, pas une de plus.
+       L'écran ci-dessous exécute exactement le code du croquis&nbsp;: mêmes constantes,
+       même dessin, même calage sur la grille.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device" id="device">
+      <canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation PixelSkull"></canvas>
+      <div class="grid"></div>
+    </div>
+    <div class="caption" id="fpsline">grille du dessin&nbsp;: ×5 &nbsp;·&nbsp; 30 images/s</div>
+  </div>
+
+  <div class="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu tourne à 30 images/s, comme la carte.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Taille</span><b id="vScale">×5</b></div>
+      <div class="seg" role="group" aria-label="Taille">
+        <button data-scale="3" aria-pressed="false">×3</button>
+        <button data-scale="4" aria-pressed="false">×4</button>
+        <button data-scale="5" aria-pressed="true">×5</button>
+      </div>
+      <div class="hint">Côté d'un pixel de dessin, en pixels d'écran. Bouton&nbsp;BOOT sur la carte, variante droite dans CyberCycle.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Déplacement</span></div>
+      <div class="seg" role="group" aria-label="Déplacement">
+        <button data-mode="bounce" aria-pressed="true">Rebond</button>
+        <button data-mode="drift" aria-pressed="false">Dérive</button>
+      </div>
+      <div class="hint">Bouton&nbsp;KEY sur la carte. La dérive suit deux sinus lents, sans impact.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Morsure au mur</span></div>
+      <div class="seg" role="group" aria-label="Morsure au mur">
+        <button data-bite="1" aria-pressed="false">Oui</button>
+        <button data-bite="0" aria-pressed="true">Non</button>
+      </div>
+      <div class="hint">Chaque impact remet la mâchoire sur «&nbsp;grand ouvert&nbsp;».</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>CHOMP_S</span><b id="vChomp">0.75 s</b></div>
+      <input type="range" id="rChomp" min="0.3" max="2" step="0.05" value="0.75" aria-label="Durée d'un cycle ouvre-ferme">
+      <div class="hint">Durée d'un cycle ouvre-ferme.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>GAP_MAX</span><b id="vGap">3 px</b></div>
+      <input type="range" id="rGap" min="1" max="5" step="1" value="3" aria-label="Ouverture maximale">
+      <div class="hint">Ouverture maximale, en pixels de dessin.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>SPEED_X</span><b id="vSx">14 px/s</b></div>
+      <input type="range" id="rSx" min="4" max="60" step="1" value="14" aria-label="Vitesse horizontale">
+      <div class="hint">Va-et-vient gauche-droite.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>SPEED_Y</span><b id="vSy">15 px/s</b></div>
+      <input type="range" id="rSy" min="4" max="60" step="1" value="15" aria-label="Vitesse verticale">
+      <div class="hint">Va-et-vient haut-bas. Garde un rapport non entier avec SPEED_X.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Grille</span></div>
+      <div class="seg" role="group" aria-label="Grille">
+        <button id="btnGrid" aria-pressed="false">Afficher la grille</button>
+      </div>
+      <div class="hint">Montre le pas d'agrandissement. Aperçu seulement, pas sur la carte.</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Le dessin</h2>
+    <p>Le crâne et la mâchoire sont deux dessins séparés, écrits en binaire dans le
+       croquis&nbsp;: chaque ligne se lit à l'œil, un «&nbsp;1&nbsp;» est un pixel d'os.
+       La mâchoire n'est pas articulée&nbsp;— elle descend, d'un nombre entier de pixels.
+       Bouche fermée, les dents du haut et du bas se touchent et n'en font qu'une rangée.</p>
+    <div class="split">
+      <canvas id="sheet" width="16" height="21" aria-label="Le dessin du crâne et de la mâchoire, pixel par pixel"></canvas>
+      <div class="legend">
+        <pre>static const uint16_t CRANIUM[13] = {
+  0b0000111111110000,
+  0b0011111111111100,
+  0b0111111111111110,
+  0b1111111111111111,
+  0b1110011111100111,   // orbites
+  0b1100001111000011,
+  0b1100001111000011,
+  0b1110011111100111,
+  0b1111111111111111,
+  0b1111111001111111,   // nez
+  0b0111110000111110,
+  0b0011111111111100,
+  0b0010110110110100,   // dents du haut
+};</pre>
+        <div class="hint">Aperçu à l'ouverture courante. Les trois lignes du bas sont la
+          mâchoire&nbsp;; l'espace noir au-dessus d'elle est <code>GAP_MAX</code>.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis. Dis-moi
+       celles que tu veux garder et je les écris dans <code>PixelSkull.ino</code>.</p>
+    <pre id="settings"></pre>
+  </section>
+
+  <section>
+    <h2>Ce qui se règle dans le croquis</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Constante</th><th>Défaut</th><th>Effet</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SCALE_A / _B / _C</td><td>5 / 4 / 3</td><td>Les trois tailles que fait passer le bouton BOOT. Toujours entières&nbsp;: c'est ce qui garde les carrés carrés.</td></tr>
+          <tr><td>GAP_MAX</td><td>3</td><td>Ouverture maximale. C'est aussi la hauteur réservée en bas de l'écran, pour que le rebond ne change pas de place selon le claquement.</td></tr>
+          <tr><td>CHOMP_S</td><td>0.75</td><td>Durée d'un cycle ouvre-ferme. L'onde est un cosinus&nbsp;: la bouche s'attarde ouverte et fermée, et passe vite entre les deux.</td></tr>
+          <tr><td>BITE_ON_WALL</td><td>0</td><td>À&nbsp;1, chaque impact remet la mâchoire sur «&nbsp;grand ouvert&nbsp;»&nbsp;: le crâne mord le mur, au prix d'un claquement irrégulier.</td></tr>
+          <tr><td>SPEED_X / _Y</td><td>14 / 15</td><td>Vitesses en px/s. Un rapport non entier évite que la trajectoire se referme trop vite.</td></tr>
+          <tr><td>DRIFT_PX / _PY</td><td>17 / 11.3</td><td>Les deux périodes du mode dérive, en secondes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Croquis autonome&nbsp;: <code>PixelSkull/PixelSkull.ino</code>, à ouvrir dans l'IDE
+    Arduino avec les réglages du README principal (§1). Il n'utilise que TFT_eSPI, ne
+    part pas en OTA, et tient dans 32&nbsp;ko de RAM&nbsp;— le tampon d'écran.
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Le dessin, identique au croquis --------------------------------
+  const CRANIUM = [
+    0b0000111111110000, 0b0011111111111100, 0b0111111111111110,
+    0b1111111111111111, 0b1110011111100111, 0b1100001111000011,
+    0b1100001111000011, 0b1110011111100111, 0b1111111111111111,
+    0b1111111001111111, 0b0111110000111110, 0b0011111111111100,
+    0b0010110110110100,
+  ];
+  const JAW = [0b0010110110110100, 0b0011111111111100, 0b0001111111111000];
+  const SKULL_W = 16, CRANIUM_H = CRANIUM.length, JAW_H = JAW.length;
+  const W = 128, H = 128, TWO_PI = Math.PI * 2;
+
+  // ---- État -----------------------------------------------------------
+  const st = {
+    scale: 5, mode: "bounce", bite: 0,
+    chompS: 0.75, gapMax: 3, sx: 14, sy: 15,
+    px: 0, py: 0, vx: 14, vy: 15,
+    chompT: 0, driftT: 0, playing: true, grid: false,
+  };
+
+  const maxX = () => W - SKULL_W * st.scale;
+  const maxY = () => H - (CRANIUM_H + st.gapMax + JAW_H) * st.scale;
+  const clamp = () => {
+    st.px = Math.min(Math.max(st.px, 0), maxX());
+    st.py = Math.min(Math.max(st.py, 0), maxY());
+  };
+  st.px = maxX() / 2; st.py = maxY() / 2;
+
+  // ---- Rendu ----------------------------------------------------------
+  const cv = document.getElementById("screen");
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(W, H);
+  const buf = new Uint32Array(img.data.buffer);
+  const BLACK = 0xFF000000, WHITE = 0xFFFFFFFF;
+
+  function blitRow(bits, ox, oy, s, out, w, h) {
+    for (let y = Math.max(oy, 0), yEnd = Math.min(oy + s, h); y < yEnd; y++) {
+      const line = y * w;
+      for (let c = 0; c < SKULL_W; c++) {
+        if (!(bits & (0x8000 >> c))) continue;
+        const x0 = ox + c * s;
+        for (let x = Math.max(x0, 0), xEnd = Math.min(x0 + s, w); x < xEnd; x++) {
+          out[line + x] = WHITE;
+        }
+      }
+    }
+  }
+
+  function paint(out, w, h, ox, oy, gap, s) {
+    out.fill(BLACK);
+    for (let r = 0; r < CRANIUM_H; r++) blitRow(CRANIUM[r], ox, oy + r * s, s, out, w, h);
+    for (let r = 0; r < JAW_H; r++) blitRow(JAW[r], ox, oy + (CRANIUM_H + gap + r) * s, s, out, w, h);
+  }
+
+  // ---- La planche du dessin -------------------------------------------
+  const sheet = document.getElementById("sheet");
+  const sctx = sheet.getContext("2d");
+  const SHEET_H = CRANIUM_H + 5 + JAW_H;   // hauteur figée : GAP_MAX ne fait pas
+  const sheetImg = sctx.createImageData(SKULL_W, SHEET_H);   // sauter la page
+  const sheetBuf = new Uint32Array(sheetImg.data.buffer);
+
+  function drawSheet(gap) {
+    paint(sheetBuf, SKULL_W, SHEET_H, 0, 0, gap, 1);
+    sctx.putImageData(sheetImg, 0, 0);
+  }
+
+  // ---- Une image -------------------------------------------------------
+  let lastGap = -1;
+
+  function step(dt) {
+    const s = st.scale;
+    let hit = false;
+
+    if (st.mode === "bounce") {
+      const mx = maxX(), my = maxY();
+      st.px += st.vx * dt;
+      if (st.px < 0) { st.px = -st.px; st.vx = -st.vx; hit = true; }
+      else if (st.px > mx) { st.px = 2 * mx - st.px; st.vx = -st.vx; hit = true; }
+      st.py += st.vy * dt;
+      if (st.py < 0) { st.py = -st.py; st.vy = -st.vy; hit = true; }
+      else if (st.py > my) { st.py = 2 * my - st.py; st.vy = -st.vy; hit = true; }
+      clamp();
+    } else {
+      st.driftT += dt;
+      st.px = 0.5 * maxX() * (1 + Math.sin(TWO_PI * st.driftT / 17.0));
+      st.py = 0.5 * maxY() * (1 + Math.sin(TWO_PI * st.driftT / 11.3));
+    }
+
+    st.chompT += dt;
+    if (hit && st.bite) st.chompT = st.chompS * 0.5;
+    if (st.chompT > st.chompS) st.chompT -= st.chompS;
+
+    const open = 0.5 - 0.5 * Math.cos(TWO_PI * st.chompT / st.chompS);
+    const gap = Math.round(open * st.gapMax);
+
+    const ox = Math.floor((st.px + 0.5) / s) * s;
+    const oy = Math.floor((st.py + 0.5) / s) * s;
+    paint(buf, W, H, ox, oy, gap, s);
+    ctx.putImageData(img, 0, 0);
+
+    if (gap !== lastGap) { lastGap = gap; drawSheet(gap); }
+  }
+
+  // ---- Boucle à 30 images/s -------------------------------------------
+  const FRAME = 1 / 30;
+  let acc = 0, prev = performance.now();
+
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      while (acc >= FRAME) { step(FRAME); acc -= FRAME; }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---- Commandes -------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  const device = $("device");
+
+  function setCell() {
+    const px = cv.getBoundingClientRect().width || 384;
+    device.style.setProperty("--cell", (st.scale * px / W) + "px");
+    $("fpsline").textContent = "grille du dessin : ×" + st.scale + " · 30 images/s";
+  }
+
+  function press(group, attr, value) {
+    group.querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset[attr] === String(value)));
+    });
+  }
+
+  function settings() {
+    const f = (n) => (Math.round(n * 100) / 100).toFixed(n % 1 ? 2 : 1);
+    $("settings").textContent =
+      "#define GAP_MAX      " + st.gapMax + "\n" +
+      "#define CHOMP_S      " + f(st.chompS) + "f\n" +
+      "#define BITE_ON_WALL " + st.bite + "\n" +
+      "#define SPEED_X      " + st.sx.toFixed(1) + "f\n" +
+      "#define SPEED_Y      " + st.sy.toFixed(1) + "f\n" +
+      "\n// taille au démarrage : ×" + st.scale +
+      "   ·   déplacement : " + (st.mode === "bounce" ? "rebond" : "dérive");
+  }
+
+  document.querySelectorAll("[data-scale]").forEach((b) => b.addEventListener("click", () => {
+    st.scale = +b.dataset.scale;
+    press(b.parentElement, "scale", st.scale);
+    $("vScale").textContent = "×" + st.scale;
+    clamp(); setCell(); settings(); step(0);
+  }));
+
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    st.mode = b.dataset.mode;
+    press(b.parentElement, "mode", st.mode);
+    settings();
+  }));
+
+  document.querySelectorAll("[data-bite]").forEach((b) => b.addEventListener("click", () => {
+    st.bite = +b.dataset.bite;
+    press(b.parentElement, "bite", st.bite);
+    settings();
+  }));
+
+  $("rChomp").addEventListener("input", (e) => {
+    st.chompS = +e.target.value;
+    $("vChomp").textContent = st.chompS.toFixed(2) + " s";
+    if (st.chompT > st.chompS) st.chompT = 0;
+    settings();
+  });
+  $("rGap").addEventListener("input", (e) => {
+    st.gapMax = +e.target.value;
+    $("vGap").textContent = st.gapMax + " px";
+    clamp(); settings(); lastGap = -1; step(0);
+  });
+  $("rSx").addEventListener("input", (e) => {
+    st.sx = +e.target.value;
+    st.vx = Math.sign(st.vx || 1) * st.sx;
+    $("vSx").textContent = st.sx + " px/s";
+    settings();
+  });
+  $("rSy").addEventListener("input", (e) => {
+    st.sy = +e.target.value;
+    st.vy = Math.sign(st.vy || 1) * st.sy;
+    $("vSy").textContent = st.sy + " px/s";
+    settings();
+  });
+
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => step(FRAME));
+  $("btnGrid").addEventListener("click", (e) => {
+    st.grid = !st.grid;
+    device.classList.toggle("show-grid", st.grid);
+    e.target.setAttribute("aria-pressed", String(st.grid));
+    e.target.textContent = st.grid ? "Masquer la grille" : "Afficher la grille";
+  });
+
+  window.addEventListener("resize", setCell);
+
+  // ---- Départ ----------------------------------------------------------
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  setCell(); settings(); step(0); drawSheet(0);
+  requestAnimationFrame(tick);
+})();
+</script>
