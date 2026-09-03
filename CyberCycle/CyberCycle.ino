@@ -1,6 +1,6 @@
 /*
  * Cyber Cycle - twelve cyberpunk animations on a 15-minute rotation,
- * and two more kept off the list until they are wanted
+ * and a thirteenth kept off the list until it is wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -29,11 +29,8 @@
  *  11 Hypno     op-art eye: rings on a black pupil that tighten on the side
  *               it looks at, ringed by bands drifting in towards the lid
  *  12 ColorText a line of text turning about the centre in rainbow
- *               strokes - write the message into CT_TEXT and put 12 in
- *               viewOrder to fly it
- *  13 Skull     a pixel skull bouncing off the four edges with its jaw
- *               snapping: a 16x16 drawing blown up into whole squares,
- *               black and white, first in the rotation
+ *               strokes - the message lives in CT_TEXT, and the size
+ *               works itself out from its length. First in the rotation
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -91,25 +88,25 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 14
+#define NUM_ANIMS 13
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 3 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
-//            10 World   11 Hypno  12 ColorText  13 Skull
+//            10 World   11 Hypno  12 ColorText
 //  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
 //  out rather than running them back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
-//  Off the list, and kept in the file: 2 Waves, 12 ColorText. Both come
-//  back by adding their id below - nothing else to restore.
+//  Off the list, and kept in the file: 2 Waves. It comes back by adding
+//  its id below - nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 13, 7, 0, 8, 1, 3, 11, 4, 10, 5, 6, 9 };
+static int viewOrder[] = { 12, 7, 0, 8, 1, 3, 11, 4, 10, 5, 6, 9 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -2495,9 +2492,8 @@ static void animHypnoEye(float t) {
 //      a circle, and the size is worked out from the length of the line,
 //      so the message is the only thing to change. The font is capitals
 //      only and carries no accents.
-//      This view is not in viewOrder: add 12 there to put it on screen.
 // ======================================================================
-#define CT_TEXT  "COUCOU PAPA ;)"
+#define CT_TEXT  "BISOUS DE BILBAO!"
 #define CT_SPIN  26.0f     // deg/s, a full turn in about 14 s
 #define CT_HUE   0.17f     // turns of the colour wheel per second
 #define CT_HUE_N 0.065f    // and how much of it separates two letters
@@ -2546,136 +2542,6 @@ static void animColorText(float t) {
 }
 
 // ======================================================================
-// 13 - PIXEL SKULL (ported from PixelSkull/)
-//      A skull sixteen pixels across, blown up into big squares, bouncing
-//      off the four edges of the screen with its jaw snapping. Two
-//      colours, not one more.
-//      The drawing is written out in binary below, one line per row: it
-//      reads by eye, and a 1 is a pixel of bone. That is the only place
-//      the skull exists - to change its face, edit those thirteen lines.
-//      The blow-up is a whole number and the position sits on that same
-//      grid, so nothing is ever interpolated. The stair-step of the
-//      outline is exactly the one in the drawing whatever the size, and
-//      the skull travels in whole squares - which is where the movement
-//      gets its stepped, hand-drawn look.
-//      The jaw is not hinged. It is a second drawing of three rows that
-//      drops by a whole number of drawing pixels. Mouth shut, the upper
-//      and lower teeth touch and read as one row; open, a black hole is
-//      left between them. Hinging it would mean resampling, which would
-//      mean greys, which would be the end of the black and white.
-// ======================================================================
-#define SK_W         16      // drawing width, in drawing pixels
-#define SK_CRANIUM   13      // rows of cranium, upper teeth included
-#define SK_JAW       3       // rows of jaw
-#define SK_GAP_MAX   3       // widest opening, in drawing pixels
-#define SK_CHOMP_S   0.75f   // one open-and-shut cycle, in seconds
-#define SK_BITE_WALL 0       // 1 = the jaw gapes wide on every impact
-#define SK_SPEED_X   14.0f   // px/s. Near enough equal to send the skull off
-#define SK_SPEED_Y   15.0f   // diagonally, unequal enough that it creeps.
-
-// Top bit = leftmost column, so the shapes read as they are drawn.
-static const uint16_t skCranium[SK_CRANIUM] = {
-  0b0000111111110000,   //     ########
-  0b0011111111111100,   //   ############
-  0b0111111111111110,   //  ##############
-  0b1111111111111111,   // ################
-  0b1110011111100111,   // ###  ######  ###   sockets
-  0b1100001111000011,   // ##    ####    ##
-  0b1100001111000011,   // ##    ####    ##
-  0b1110011111100111,   // ###  ######  ###
-  0b1111111111111111,   // ################
-  0b1111111001111111,   // #######  #######   nose
-  0b0111110000111110,   //  #####    #####
-  0b0011111111111100,   //   ############     cheekbones
-  0b0010110110110100,   //   # ## ## ## #     upper teeth
-};
-
-static const uint16_t skJaw[SK_JAW] = {
-  0b0010110110110100,   //   # ## ## ## #     lower teeth
-  0b0011111111111100,   //   ############
-  0b0001111111111000,   //    ##########      chin
-};
-
-// The right button picks the size. Whole numbers only: that is what keeps
-// the squares square.
-static const int skScales[3] = { 5, 4, 3 };
-
-static float skX, skY, skVX, skVY, skChomp;
-
-// The skull must never hang off the screen, jaw at full gape included, so
-// the height reserved is always the wide-open one - even mouth shut. Without
-// that the bottom bounce would move around with the chomp.
-static float skMaxX(int s) { return (float)(SCREEN_W - SK_W * s); }
-static float skMaxY(int s) { return (float)(SCREEN_H - (SK_CRANIUM + SK_GAP_MAX + SK_JAW) * s); }
-
-static void initSkull() {
-  int s = skScales[variant[13]];
-  skX = skMaxX(s) * 0.5f;
-  skY = skMaxY(s) * 0.5f;
-  skVX = SK_SPEED_X;
-  skVY = SK_SPEED_Y;
-  skChomp = 0.0f;
-}
-
-// One row of the drawing, blown up into squares of s a side. The grid
-// alignment is the caller's job; here we only fill squares.
-static void skBlitRow(uint16_t bits, int ox, int oy, int s) {
-  int yEnd = oy + s;
-  if (yEnd > SCREEN_H) yEnd = SCREEN_H;
-  for (int y = (oy < 0 ? 0 : oy); y < yEnd; y++) {
-    uint16_t *line = fb + y * SCREEN_W;
-    for (int c = 0; c < SK_W; c++) {
-      if (!(bits & (0x8000 >> c))) continue;
-      int x0 = ox + c * s;
-      int xEnd = x0 + s;
-      if (xEnd > SCREEN_W) xEnd = SCREEN_W;
-      for (int x = (x0 < 0 ? 0 : x0); x < xEnd; x++) line[x] = TFT_WHITE;
-    }
-  }
-}
-
-static void animSkull(float dt) {
-  int s = skScales[variant[13]];
-  float mx = skMaxX(s), my = skMaxY(s);
-  bool hit = false;
-
-  // Overshoot is folded back over the wall rather than thrown away, so the
-  // path does not slowly slide over the hours.
-  skX += skVX * dt;
-  if (skX < 0.0f)    { skX = -skX;            skVX = -skVX; hit = true; }
-  else if (skX > mx) { skX = 2.0f * mx - skX; skVX = -skVX; hit = true; }
-  skY += skVY * dt;
-  if (skY < 0.0f)    { skY = -skY;            skVY = -skVY; hit = true; }
-  else if (skY > my) { skY = 2.0f * my - skY; skVY = -skVY; hit = true; }
-
-  // The right button can shrink the box out from under the skull mid-flight.
-  if (skX < 0.0f) skX = 0.0f; else if (skX > mx) skX = mx;
-  if (skY < 0.0f) skY = 0.0f; else if (skY > my) skY = my;
-
-  skChomp += dt;
-  // SK_BITE_WALL, at 1: no separate animation, just the chomp phase put back
-  // where the mouth is widest, landing the bite square on the impact.
-  if (hit && SK_BITE_WALL) skChomp = SK_CHOMP_S * 0.5f;
-  if (skChomp > SK_CHOMP_S) skChomp -= SK_CHOMP_S;
-
-  // A cosine, rounded to whole rows: the mouth dwells wide and dwells shut,
-  // and crosses fast between the two. A snap, not a see-saw.
-  float openF = 0.5f - 0.5f * cosf(TWO_PI * skChomp / SK_CHOMP_S);
-  int gap = (int)(openF * SK_GAP_MAX + 0.5f);
-
-  // On the grid: the skull only ever lands on multiples of s.
-  int ox = ((int)(skX + 0.5f) / s) * s;
-  int oy = ((int)(skY + 0.5f) / s) * s;
-
-  memset(fb, 0, sizeof(fb));
-  for (int r = 0; r < SK_CRANIUM; r++)
-    skBlitRow(skCranium[r], ox, oy + r * s, s);
-  for (int r = 0; r < SK_JAW; r++)
-    skBlitRow(skJaw[r], ox, oy + (SK_CRANIUM + gap + r) * s, s);
-  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
-}
-
-// ======================================================================
 // framework
 // ======================================================================
 
@@ -2696,7 +2562,6 @@ static void initAnim(int idx) {
     case 9: initTunnel(); break;
     case 10: initWorldRing(); break;
     case 11: initHypnoEye(); break;
-    case 13: initSkull(); break;
     default: break;
   }
   Serial.printf("anim %d\n", idx);
@@ -2723,7 +2588,6 @@ void setup() {
   variant[7] = 0;   // Scan: medium contour density
   variant[10] = 0;  // World: graticule and continents together
   variant[11] = 0;  // Hypno: medium band weight
-  variant[13] = 0;  // Skull: the biggest of the three sizes, x5
 
   btnLeft.attachClick([]() {                 // next view in the schedule
     slot = (slot + 1) % N_VIEWS;
@@ -2764,7 +2628,6 @@ void loop() {
     case 10: animWorldRing(animTime); break;
     case 11: animHypnoEye(animTime); break;
     case 12: animColorText(animTime); break;
-    case 13: animSkull(dt);        break;
   }
 
   if (now - animStart >= ANIM_MS) {
