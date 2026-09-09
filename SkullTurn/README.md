@@ -80,8 +80,10 @@ blanc.
 > rayons ne tombent alors que sur les coordonnées paires, donc on ne tirerait
 > que quatre seuils sur seize — tous du côté sombre — et l'image partirait
 > entièrement en blanc. C'était le cas dans la première version, et ça ne se
-> voyait pas parce que le mode « Gris » de l'aperçu, lui, ne trame pas. La
-> leçon : quand on juge un rendu 1 bit, il faut le juger en 1 bit.
+> voyait pas parce qu'on jugeait dans un mode « gris » de l'aperçu qui, lui, ne
+> tramait pas. Ce mode a été retiré pour cette raison : **l'aperçu ne sait plus
+> afficher que du noir et du blanc, comme la carte.** Un rendu 1 bit se juge en
+> 1 bit, et le plus sûr est de ne pas laisser d'autre choix.
 
 **Le liseré de tranche** (`RIM`). Le fond est noir et l'os aussi, là où il
 s'éloigne de la lumière. Sans un peu de clair sur la tranche, la silhouette se

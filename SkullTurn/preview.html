@@ -95,13 +95,13 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · essai</div>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · vue 13</div>
     <h1>SkullTurn</h1>
-    <p>Un crâne en volume, éclairé, qui tourne lentement sur lui-même. Aucun
+    <p>Un crâne en volume, éclairé, qui se balance lentement sur son axe. Aucun
        modèle 3D, aucune texture&nbsp;: dix-huit ellipsoïdes, neuf qu'on ajoute et
-       neuf qu'on creuse, traversés par un rayon à chaque pixel. Le noir et
-       blanc est obtenu par tramage — deux couleurs seulement, comme sur la
-       carte.</p>
+       neuf qu'on creuse, traversés par un rayon à chaque pixel. Deux couleurs
+       et rien d'autre&nbsp;: les demi-teintes sont tramées, ici exactement comme
+       sur la carte.</p>
   </header>
 
   <div class="stage">
@@ -120,15 +120,6 @@
     </div>
 
     <div class="field">
-      <div class="label"><span>Rendu</span></div>
-      <div class="seg" role="group" aria-label="Rendu">
-        <button data-grey="0" aria-pressed="true">Tramé 1 bit</button>
-        <button data-grey="1" aria-pressed="false">Gris</button>
-      </div>
-      <div class="hint">Le mode gris n'est là que pour juger l'éclairage&nbsp;; la carte affiche le tramé.</div>
-    </div>
-
-    <div class="field">
       <div class="label"><span>Trame</span></div>
       <div class="seg" role="group" aria-label="Trame">
         <button data-bayer="8" aria-pressed="false">8 × 8</button>
@@ -143,7 +134,7 @@
         <button data-half="0" aria-pressed="false">1 pixel</button>
         <button data-half="1" aria-pressed="true">2 × 2</button>
       </div>
-      <div class="hint">En 2×2, un rayon pour quatre pixels&nbsp;: quatre fois plus rapide sur la carte.</div>
+      <div class="hint">En 2×2, un rayon pour quatre pixels. <b>C'est le seul mode qui tienne la cadence sur la carte</b> — vérifié en USB, la pleine finesse rame. Le croquis est figé en 2×2.</div>
     </div>
 
     <div class="field">
@@ -462,13 +453,11 @@
                     m20*su + m21*sv + m22*Z0,
                     dx, dy, dz, lx, ly, lz, p);
         }
-        let col;
-        if (p.grey) {
-          const g = (v * 255) | 0;
-          col = 0xFF000000 | (g << 16) | (g << 8) | g;
-        } else {
-          col = v > (bay[((ry & bm) << bs) | (rx & bm)] + 0.5) / bd ? 0xFFFFFFFF : 0xFF000000;
-        }
+        // Deux couleurs, jamais autre chose : c'est le seul rendu, ici comme
+        // sur la carte. Un mode gris existait pour juger l'éclairage — c'est
+        // lui qui a caché un défaut de trame, et il a été retiré pour ça.
+        const col = v > (bay[((ry & bm) << bs) | (rx & bm)] + 0.5) / bd
+                  ? 0xFFFFFFFF : 0xFF000000;
         if (step === 1) out[py*W + px] = col;
         else { const a = py*W + px, b = a + W; out[a] = col; out[a+1] = col; out[b] = col; out[b+1] = col; }
       }
@@ -483,7 +472,7 @@
     spinS: 12, tiltDeg: 8, zoom: 64, azDeg: -11, elDeg: 37,
     ambient: 0.14, rim: 0.14, gamma: 1.05, socket: 1.18, cheek: 0.38,
     cavity: 0.42, sweepDeg: 110,
-    teeth: 0, grey: 0, bayer8: false, half: true,
+    teeth: 0, bayer8: false, half: true,
     t: 0, yaw: 0, tilt: 8 * D2R, lightAz: 35 * D2R, lightEl: 30 * D2R,
     playing: true,
   };
@@ -571,9 +560,6 @@
     });
   }
 
-  document.querySelectorAll("[data-grey]").forEach((b) => b.addEventListener("click", () => {
-    st.grey = +b.dataset.grey; press(b.parentElement, "grey", st.grey); refresh();
-  }));
   document.querySelectorAll("[data-bayer]").forEach((b) => b.addEventListener("click", () => {
     st.bayer8 = b.dataset.bayer === "8"; press(b.parentElement, "bayer", b.dataset.bayer); refresh();
   }));
