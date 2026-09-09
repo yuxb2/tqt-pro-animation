@@ -220,6 +220,16 @@ Dans l'ordre :
    `Detected size(4096k) smaller than the size in the binary image header` =
    mauvais réglage Flash Size. `assert failed: do_core_init` = redémarrage en
    boucle, l'écran ne s'allume jamais.
+
+   > **Le moniteur série peut rester désespérément vide, et ce n'est pas la
+   > carte.** Avec le FQBN du dépôt, `Serial` sort sur l'**UART0** (GPIO 43/44)
+   > et pas sur le port USB : `arduino-cli monitor` et `cat /dev/cu.usbmodem*`
+   > ne renvoient alors rien du tout, même quand le croquis tourne
+   > parfaitement. Pour lire les traces par l'USB il faut compiler avec
+   > **USB CDC On Boot : Enabled** (`CDCOnBoot=cdc` dans le FQBN) — donc un
+   > binaire différent de celui que publie GitHub. Une demi-heure perdue à
+   > chercher une panne qui n'existait pas : si le port est muet, vérifie
+   > d'abord ce réglage avant de suspecter quoi que ce soit d'autre.
 3. Écran noir mais rétroéclairage allumé, sans boucle : c'est la config
    d'écran. Vérifie que `libraries/TFT_eSPI/User_Setup_Select.h` sélectionne
    bien `Setup211_LilyGo_T_QT_Pro_S3.h`.
