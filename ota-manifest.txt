@@ -1,0 +1,2 @@
+version=1.0.15
+url=https://raw.githubusercontent.com/yuxb2/tqt-pro-animation/firmware/CyberCycle.bin
