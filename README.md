@@ -6,17 +6,16 @@ Animations pour LilyGo **T-QT Pro** (ESP32-S3, écran 128×128 GC9A01), avec mis
 Dépôt : https://github.com/yuxb2/tqt-pro-animation
 
 Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
-chacune, **`Color text message` en tête**. Bouton gauche = animation suivante,
-bouton droit = variante.
+chacune, **`Skull` en tête**. Bouton gauche = animation suivante, bouton
+droit = variante.
 
-> La phrase qui ouvre le tour se change sur une ligne : `CT_TEXT`, vers la
-> ligne 2496 de `CyberCycle.ino`. Elle dit « BISOUS DE BILBAO! ». La taille se
-> règle toute seule sur la longueur ; la font est en capitales et ne connaît
-> pas les accents.
-
-> Une treizième attend hors liste, sans être supprimée du fichier :
-> **`Waves`** (vue 2). Il suffit d'ajouter `2` à `viewOrder` pour qu'elle
-> repasse comme les autres.
+> Deux autres attendent hors liste, sans être supprimées du fichier. Il suffit
+> d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
+>
+> - **`Waves`** (vue 2).
+> - **`Color text message`** (vue 12), la phrase multicolore qui tourne au
+>   milieu de l'écran. Le texte est dans `CT_TEXT` et dit toujours « BISOUS DE
+>   BILBAO! » — il est gardé là, prêt à ressortir.
 
 ---
 
@@ -140,8 +139,8 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
 
-Trois d'entre eux ont leur propre README, et sont **aussi** repris dans
-`CyberCycle/` (vues 7, 10 et 11) :
+Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7, 10, 11 et 13) :
 
 - `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
   de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
@@ -150,6 +149,8 @@ Trois d'entre eux ont leur propre README, et sont **aussi** repris dans
   coordonnées, comme si on auscultait un objet céleste.
 - `HypnoEye/` — œil op-art dont la pupille regarde à droite et à gauche en
   resserrant les anneaux du côté visé.
+- `SkullTurn/` — un crâne en volume, éclairé, qui se balance sur son axe.
+  Dix-huit ellipsoïdes et un rayon par pixel, tramé en noir et blanc.
 
 ### Comment on fabrique une nouvelle animation
 
@@ -177,9 +178,12 @@ Trois d'entre eux ont leur propre README, et sont **aussi** repris dans
    un préfixe à elle sur toutes ses constantes (`SK_`, `HE_`, `WR_`…), et son
    numéro ajouté à `viewOrder`.
 
-Une animation retirée du tour n'est pas forcément gardée : `Waves` reste dans
-le fichier parce qu'on veut la revoir, mais un essai qu'on abandonne se
-supprime pour de bon — il reste dans l'historique Git, c'est suffisant.
+`SkullTurn/preview.html` est l'exemple de référence.
+
+Une animation retirée du tour n'est pas forcément gardée : `Waves` et
+`Color text message` restent dans le fichier parce qu'on veut les revoir, mais
+un essai qu'on abandonne se supprime pour de bon — il reste dans l'historique
+Git, c'est suffisant.
 
 ---
 

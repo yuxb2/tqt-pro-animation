@@ -1,6 +1,6 @@
 /*
  * Cyber Cycle - twelve cyberpunk animations on a 15-minute rotation,
- * and a thirteenth kept off the list until it is wanted
+ * and two more kept off the list until they are wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -30,7 +30,12 @@
  *               it looks at, ringed by bands drifting in towards the lid
  *  12 ColorText a line of text turning about the centre in rainbow
  *               strokes - the message lives in CT_TEXT, and the size
- *               works itself out from its length. First in the rotation
+ *               works itself out from its length. OFF THE LIST for now;
+ *               put 12 back in viewOrder to fly it again
+ *  13 Skull     a lit skull in the round, rocking about its own axis:
+ *               eighteen ellipsoids, nine added and nine carved out,
+ *               one ray per pixel, dithered to pure black and white.
+ *               First in the rotation
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -88,25 +93,25 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 13
+#define NUM_ANIMS 14
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 3 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
-//            10 World   11 Hypno  12 ColorText
+//            10 World   11 Hypno  12 ColorText  13 Skull
 //  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
 //  out rather than running them back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
-//  Off the list, and kept in the file: 2 Waves. It comes back by adding
-//  its id below - nothing else to restore.
+//  Off the list, and kept in the file: 2 Waves, 12 ColorText. Both come
+//  back by adding their id below - nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 12, 7, 0, 8, 1, 3, 11, 4, 10, 5, 6, 9 };
+static int viewOrder[] = { 13, 7, 0, 8, 1, 3, 11, 4, 10, 5, 6, 9 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -2542,6 +2547,246 @@ static void animColorText(float t) {
 }
 
 // ======================================================================
+// 13 - SKULL (ported from SkullTurn/)
+//      A lit skull in the round, rocking slowly about its own axis. Two
+//      colours, not one more: the half-tones are dithered.
+//      No mesh, no texture, no depth buffer. The skull is eighteen
+//      ellipsoids - nine added for bone, nine carved out for the hollows:
+//      eye sockets, nasal aperture, the slot of the mouth, the temporal
+//      fossae, under the chin. It all lives in SK_PRIM, six numbers to a
+//      line: centre, then radii.
+//      One ray per pixel. An ellipsoid crossed by a ray is a quadratic and
+//      nothing more, so all eighteen are solved in one pass; everything
+//      after that only compares the intervals they hand back, which is
+//      what makes the whole thing affordable here.
+//      The view is orthographic, and that is a speed decision as much as a
+//      look: the ray direction is then the same for the whole screen, so
+//      the per-primitive setup happens once a frame instead of sixteen
+//      thousand times. It is also why the ray turns rather than the model.
+//      Two things carry the picture more than the geometry does:
+//        - SK_CAVITY. A carved wall sees only a patch of sky, so it takes
+//          less light. Without that factor the sockets read as lit bowls
+//          and the whole thing as a ball; with it, they read as holes.
+//        - the ordered dither, indexed on the RAY and not the screen pixel.
+//          At half resolution, indexing on the pixel would only ever draw
+//          the dark quarter of the table and the image would blow out to
+//          white.
+// ======================================================================
+#define SK_SPIN_S    12.0f    // seconds for one sweep, out and back
+#define SK_TILT_DEG   8.0f    // fixed tilt; positive = seen from a little above
+#define SK_ZOOM_PX   64.0f    // screen pixels per model unit
+#define SK_BOUND_R    1.45f   // bounding sphere: it cuts the background short
+#define SK_Z0         3.0f    // where the rays start
+#define SK_LIGHT_AZ -11.0f    // the light is fixed in the room: the skull
+#define SK_LIGHT_EL  37.0f    // turns inside it, which is what gives volume
+#define SK_AMBIENT    0.14f   // what is left of bone in the shade
+#define SK_RIM        0.14f   // the edge light that lifts it off the black
+#define SK_CAVITY     0.42f   // light left at the bottom of a hollow
+#define SK_GAMMA      1.05f
+#define SK_HALF_RES   1       // one ray for four pixels
+// The teeth of the standalone sketch - stripes in the shading rather than
+// volumes - are switched off here, so that code is not carried over. It lives
+// in SkullTurn/SkullTurn.ino behind TEETH if it is ever wanted.
+
+static const float SK_PRIM[18][6] = {
+  { 0.00f,  0.10f, -0.26f,  0.56f,  0.68f,  0.68f },   // braincase, reaching low
+  { 0.00f,  0.20f,  0.14f,  0.49f,  0.47f,  0.42f },   // frontal
+  { 0.00f, -0.12f,  0.26f,  0.45f,  0.42f,  0.40f },   // face mass
+  { 0.00f, -0.44f,  0.24f,  0.33f,  0.17f,  0.31f },   // maxilla
+  { 0.00f, -0.60f,  0.18f,  0.36f,  0.16f,  0.36f },   // body of the mandible
+  { 0.32f, -0.32f,  0.04f,  0.07f,  0.24f,  0.15f },   // right ramus
+  {-0.32f, -0.32f,  0.04f,  0.07f,  0.24f,  0.15f },   // left ramus
+  { 0.38f, -0.04f,  0.00f,  0.10f,  0.07f,  0.36f },   // right zygomatic arch
+  {-0.38f, -0.04f,  0.00f,  0.10f,  0.07f,  0.36f },   // left zygomatic arch
+
+  { 0.25f, -0.01f,  0.56f,  0.224f, 0.224f, 0.260f },  // right eye socket
+  {-0.25f, -0.01f,  0.56f,  0.224f, 0.224f, 0.260f },  // left eye socket
+  { 0.00f, -0.26f,  0.52f,  0.10f,  0.15f,  0.20f },   // nasal aperture
+  { 0.00f, -0.51f,  0.30f,  0.30f,  0.03f,  0.30f },   // slot of the mouth
+  { 0.60f,  0.18f, -0.08f,  0.22f,  0.30f,  0.34f },   // right temporal fossa
+  {-0.60f,  0.18f, -0.08f,  0.22f,  0.30f,  0.34f },   // left temporal fossa
+  { 0.00f, -1.06f,  0.10f,  0.50f,  0.38f,  0.50f },   // under the chin
+  { 0.00f, -0.62f, -0.02f,  0.26f,  0.22f,  0.42f },   // jaw arch, hollowed from behind
+  { 0.00f, -1.02f, -0.42f,  0.46f,  0.42f,  0.44f },   // shaves the low back
+};
+#define SK_N_ADD  9
+#define SK_N_PRIM 18
+
+// 4x4 ordered dither: a coarser, franker grain than 8x8, and enough levels
+// once the threshold is indexed on the ray.
+static const uint8_t skBayer[16] = {
+   0,  8,  2, 10,
+  12,  4, 14,  6,
+   3, 11,  1,  9,
+  15,  7, 13,  5,
+};
+
+// The right button picks how far it swings. 360 is the full turn, which walks
+// through the profile - the weakest angle of the model.
+static const float skSweep[3] = { 110.0f, 360.0f, 180.0f };
+
+// Same for the whole screen under an orthographic view, so worked out once a
+// frame rather than sixteen thousand times.
+static float skInvR[SK_N_PRIM][3];
+static float skDp[SK_N_PRIM][3];
+static float skA[SK_N_PRIM], skInvA[SK_N_PRIM];
+static float skIn[SK_N_PRIM], skOut[SK_N_PRIM];
+static bool  skHit[SK_N_PRIM];
+
+static float skShade(float ox, float oy, float oz,
+                     float dx, float dy, float dz,
+                     float lx, float ly, float lz) {
+  // Every intersection in one pass. After this the walk only compares
+  // numbers, which is what makes the CSG cheap.
+  for (int i = 0; i < SK_N_PRIM; i++) {
+    const float *q = SK_PRIM[i];
+    float px = (ox - q[0]) * skInvR[i][0];
+    float py = (oy - q[1]) * skInvR[i][1];
+    float pz = (oz - q[2]) * skInvR[i][2];
+    float b = px * skDp[i][0] + py * skDp[i][1] + pz * skDp[i][2];
+    float c = px * px + py * py + pz * pz - 1.0f;
+    float disc = b * b - skA[i] * c;
+    if (disc <= 0.0f) { skHit[i] = false; continue; }
+    float sq = sqrtf(disc);
+    skHit[i] = true;
+    skIn[i]  = (-b - sq) * skInvA[i];
+    skOut[i] = (-b + sq) * skInvA[i];
+  }
+
+  float t = 1e30f;
+  int k = -1;
+  for (int i = 0; i < SK_N_ADD; i++)
+    if (skHit[i] && skIn[i] < t) { t = skIn[i]; k = i; }
+  if (k < 0) return 0.0f;
+
+  // Step out of every hollow we land in, and pick up further along if we come
+  // out into open air.
+  bool inward = false;
+  for (int guard = 0; guard < 6; guard++) {
+    int jBest = -1;
+    float tBest = t;
+    for (int j = SK_N_ADD; j < SK_N_PRIM; j++)
+      if (skHit[j] && skIn[j] < t && t < skOut[j] && skOut[j] > tBest) {
+        tBest = skOut[j]; jBest = j;
+      }
+    if (jBest < 0) break;
+
+    t = tBest;
+    int inside = -1;
+    for (int i = 0; i < SK_N_ADD; i++)
+      if (skHit[i] && skIn[i] < t && t < skOut[i]) { inside = i; break; }
+    if (inside >= 0) { k = jBest; inward = true; continue; }
+
+    float nt = 1e30f;
+    int ni = -1;
+    for (int i = 0; i < SK_N_ADD; i++)
+      if (skHit[i] && skIn[i] > t + 1e-4f && skIn[i] < nt) { nt = skIn[i]; ni = i; }
+    if (ni < 0) return 0.0f;
+    t = nt; k = ni; inward = false;
+  }
+
+  const float *q = SK_PRIM[k];
+  float hx = ox + t * dx, hy = oy + t * dy, hz = oz + t * dz;
+  float nx = (hx - q[0]) * skInvR[k][0] * skInvR[k][0];
+  float ny = (hy - q[1]) * skInvR[k][1] * skInvR[k][1];
+  float nz = (hz - q[2]) * skInvR[k][2] * skInvR[k][2];
+  float inv = 1.0f / sqrtf(nx * nx + ny * ny + nz * nz);
+  if (inward) inv = -inv;                 // a hollow wall looks inward
+  nx *= inv; ny *= inv; nz *= inv;
+
+  float diff = nx * lx + ny * ly + nz * lz;
+  if (diff < 0.0f) diff = 0.0f;
+  float ndv = -(nx * dx + ny * dy + nz * dz);
+  if (ndv < 0.0f) ndv = 0.0f;
+  float om = 1.0f - ndv;
+  float rim = SK_RIM * om * om * om;
+
+  float ux = lx - dx, uy = ly - dy, uz = lz - dz;
+  float ul = 1.0f / sqrtf(ux * ux + uy * uy + uz * uz);
+  float spec = nx * ux * ul + ny * uy * ul + nz * uz * ul;
+  if (spec > 0.0f) {
+    float s2 = spec * spec, s4 = s2 * s2, s8 = s4 * s4;
+    spec = s8 * s4 * s2 * 0.22f;          // ^14, without powf
+  } else spec = 0.0f;
+
+  float v = SK_AMBIENT + (1.0f - SK_AMBIENT) * diff + rim + spec;
+  if (inward) v *= SK_CAVITY;
+  if (v < 0.0f) v = 0.0f; else if (v > 1.0f) v = 1.0f;
+  return powf(v, SK_GAMMA);
+}
+
+static void animSkull(float t) {
+  float sweep = skSweep[variant[13]];
+  float yaw = (sweep >= 360.0f)
+            ? TWO_PI * t / SK_SPIN_S
+            : 0.5f * sweep * DEG_TO_RAD * sinf(TWO_PI * t / SK_SPIN_S);
+  float tilt = SK_TILT_DEG * DEG_TO_RAD;
+
+  float cy = cosf(yaw),  sy = sinf(yaw);
+  float cx = cosf(tilt), sxx = sinf(tilt);
+
+  // M carries the ray into model space, which saves turning eighteen
+  // primitives every frame.
+  float m00 = cy,       m01 = 0.0f, m02 = -sy;
+  float m10 = sy * sxx, m11 = cx,   m12 =  cy * sxx;
+  float m20 = sy * cx,  m21 = -sxx, m22 =  cy * cx;
+  float dx = -m02, dy = -m12, dz = -m22;
+
+  for (int i = 0; i < SK_N_PRIM; i++) {
+    const float *q = SK_PRIM[i];
+    float ix = 1.0f / q[3], iy = 1.0f / q[4], iz = 1.0f / q[5];
+    skInvR[i][0] = ix; skInvR[i][1] = iy; skInvR[i][2] = iz;
+    float ax = dx * ix, ay = dy * iy, az = dz * iz;
+    skDp[i][0] = ax; skDp[i][1] = ay; skDp[i][2] = az;
+    float a = ax * ax + ay * ay + az * az;
+    skA[i] = a;
+    skInvA[i] = 1.0f / a;
+  }
+
+  float le = SK_LIGHT_EL * DEG_TO_RAD, la = SK_LIGHT_AZ * DEG_TO_RAD;
+  float wx = cosf(le) * sinf(la), wy = sinf(le), wz = cosf(le) * cosf(la);
+  float lx = m00 * wx + m01 * wy + m02 * wz;
+  float ly = m10 * wx + m11 * wy + m12 * wz;
+  float lz = m20 * wx + m21 * wy + m22 * wz;
+
+  const float sc = 1.0f / SK_ZOOM_PX;
+  const float half = SCREEN_W * 0.5f;
+  const int step = SK_HALF_RES ? 2 : 1;
+
+  // rayX, rayY count rays and not pixels: the dither threshold is indexed on
+  // them. Indexed on the pixel, half resolution would only ever draw the dark
+  // quarter of the table and the picture would blow out to white.
+  int rayY = 0;
+  for (int py = 0; py < SCREEN_H; py += step, rayY++) {
+    float sv = -((float)py + 0.5f - half) * sc;
+    int rayX = 0;
+    for (int px = 0; px < SCREEN_W; px += step, rayX++) {
+      float su = ((float)px + 0.5f - half) * sc;
+
+      float v = 0.0f;
+      if (su * su + sv * sv < SK_BOUND_R * SK_BOUND_R) {
+        v = skShade(m00 * su + m01 * sv + m02 * SK_Z0,
+                    m10 * su + m11 * sv + m12 * SK_Z0,
+                    m20 * su + m21 * sv + m22 * SK_Z0,
+                    dx, dy, dz, lx, ly, lz);
+      }
+
+      float th = ((float)skBayer[((rayY & 3) << 2) | (rayX & 3)] + 0.5f) * (1.0f / 16.0f);
+      uint16_t col = (v > th) ? TFT_WHITE : TFT_BLACK;
+
+      if (step == 1) {
+        fb[py * SCREEN_W + px] = col;
+      } else {
+        uint16_t *r0 = fb + py * SCREEN_W + px;
+        r0[0] = col; r0[1] = col;
+        r0[SCREEN_W] = col; r0[SCREEN_W + 1] = col;
+      }
+    }
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -2588,6 +2833,7 @@ void setup() {
   variant[7] = 0;   // Scan: medium contour density
   variant[10] = 0;  // World: graticule and continents together
   variant[11] = 0;  // Hypno: medium band weight
+  variant[13] = 0;  // Skull: the 110-degree sweep, which stays off the profile
 
   btnLeft.attachClick([]() {                 // next view in the schedule
     slot = (slot + 1) % N_VIEWS;
@@ -2628,6 +2874,7 @@ void loop() {
     case 10: animWorldRing(animTime); break;
     case 11: animHypnoEye(animTime); break;
     case 12: animColorText(animTime); break;
+    case 13: animSkull(animTime);    break;
   }
 
   if (now - animStart >= ANIM_MS) {

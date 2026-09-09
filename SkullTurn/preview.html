@@ -1,0 +1,630 @@
+<title>SkullTurn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding: clamp(1.25rem, 4vw, 3rem) 1.25rem 5rem;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(2.5rem, 6vw, 4rem); }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+  .eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-family: var(--bitmap); font-weight: 400; font-size: clamp(1.7rem, 7vw, var(--step-3)); line-height: 1.1; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; max-width: 34rem; color: var(--ink-2); }
+
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+  .device { position: relative; padding: 14px; background: var(--screen-bg); border: 1px solid var(--rule); line-height: 0; }
+  .device canvas { display: block; width: min(384px, 78vw); height: auto; aspect-ratio: 1; image-rendering: crisp-edges; image-rendering: pixelated; }
+  .caption { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 0.55rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+  .field:last-child { border-right: 0; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; }
+  .field .label b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: var(--step--1); padding: 0.4rem 0.3rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-right-width: 0; cursor: pointer; }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible, input[type="range"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: var(--rule); margin: 0.7rem 0; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--ink); border: 0; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--ink); border: 0; border-radius: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 { font-family: var(--bitmap); font-weight: 400; font-size: var(--step-1); margin: 0; padding-bottom: 0.6rem; border-bottom: 1px solid var(--rule); letter-spacing: 0.02em; }
+  section p { margin: 0; max-width: 40rem; }
+
+  .split { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+  .split .legend { flex: 1 1 15rem; display: flex; flex-direction: column; gap: 0.8rem; }
+  #plan { border: 1px solid var(--rule); width: 220px; height: auto; background: transparent; }
+  #plan .solid { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+  #plan .hole  { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: 0.75; }
+  #plan .off   { opacity: 0.32; }
+  #plan text   { font-family: var(--mono); font-size: 9px; fill: var(--ink-2); }
+
+  pre { font-family: var(--mono); font-size: var(--step--1); line-height: 1.7; border: 1px solid var(--rule); padding: 1rem 1.1rem; margin: 0; overflow-x: auto; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+  footer { font-size: var(--step--1); color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · essai</div>
+    <h1>SkullTurn</h1>
+    <p>Un crâne en volume, éclairé, qui tourne lentement sur lui-même. Aucun
+       modèle 3D, aucune texture&nbsp;: dix-huit ellipsoïdes, neuf qu'on ajoute et
+       neuf qu'on creuse, traversés par un rayon à chaque pixel. Le noir et
+       blanc est obtenu par tramage — deux couleurs seulement, comme sur la
+       carte.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device"><canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation SkullTurn"></canvas></div>
+    <div class="caption" id="fpsline">—</div>
+  </div>
+
+  <div class="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu vise 30 images/s. Le chiffre mesuré est au-dessus.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Rendu</span></div>
+      <div class="seg" role="group" aria-label="Rendu">
+        <button data-grey="0" aria-pressed="true">Tramé 1 bit</button>
+        <button data-grey="1" aria-pressed="false">Gris</button>
+      </div>
+      <div class="hint">Le mode gris n'est là que pour juger l'éclairage&nbsp;; la carte affiche le tramé.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Trame</span></div>
+      <div class="seg" role="group" aria-label="Trame">
+        <button data-bayer="8" aria-pressed="false">8 × 8</button>
+        <button data-bayer="4" aria-pressed="true">4 × 4</button>
+      </div>
+      <div class="hint">8×8 donne plus de nuances, 4×4 un grain plus gros et plus franc.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Finesse</span></div>
+      <div class="seg" role="group" aria-label="Finesse">
+        <button data-half="0" aria-pressed="false">1 pixel</button>
+        <button data-half="1" aria-pressed="true">2 × 2</button>
+      </div>
+      <div class="hint">En 2×2, un rayon pour quatre pixels&nbsp;: quatre fois plus rapide sur la carte.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>SPIN_S</span><b id="vSpin">12.0 s</b></div>
+      <input type="range" id="rSpin" min="3" max="40" step="0.5" value="12" aria-label="Durée d'un tour">
+      <div class="hint">Durée d'un tour complet.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>TILT</span><b id="vTilt">8°</b></div>
+      <input type="range" id="rTilt" min="-25" max="35" step="1" value="8" aria-label="Inclinaison">
+      <div class="hint">Inclinaison fixe. Positif = on le regarde d'un peu au-dessus.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>ZOOM</span><b id="vZoom">64 px</b></div>
+      <input type="range" id="rZoom" min="28" max="64" step="1" value="64" aria-label="Taille à l'écran">
+      <div class="hint">Pixels d'écran par unité du modèle. Le crâne fait deux unités de haut.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>LIGHT_AZ</span><b id="vAz">-11°</b></div>
+      <input type="range" id="rAz" min="-90" max="90" step="1" value="-11" aria-label="Azimut de la lumière">
+      <div class="hint">La lumière est fixe dans la pièce&nbsp;: c'est le crâne qui tourne dedans.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>LIGHT_EL</span><b id="vEl">37°</b></div>
+      <input type="range" id="rEl" min="-40" max="80" step="1" value="37" aria-label="Hauteur de la lumière">
+      <div class="hint">Hauteur de la lumière. Sous zéro, l'éclairage vient d'en bas.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>AMBIENT</span><b id="vAmb">0.14</b></div>
+      <input type="range" id="rAmb" min="0" max="0.4" step="0.01" value="0.14" aria-label="Lumière d'ambiance">
+      <div class="hint">Ce qui reste de matière dans l'ombre. À zéro, la face sombre disparaît dans le fond.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>RIM</span><b id="vRim">0.14</b></div>
+      <input type="range" id="rRim" min="0" max="1" step="0.02" value="0.14" aria-label="Liseré de tranche">
+      <div class="hint">Le liseré sur la tranche, qui décolle la silhouette du fond noir.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>SWEEP_DEG</span><b id="vSweep">110°</b></div>
+      <input type="range" id="rSweep" min="60" max="360" step="10" value="110" aria-label="Amplitude du mouvement">
+      <div class="hint">À 360 il fait le tour. En dessous il se balance de part et d'autre de la face, sans jamais montrer son profil.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>CAVITY</span><b id="vCav">0.42</b></div>
+      <input type="range" id="rCav" min="0.15" max="1" step="0.01" value="0.42" aria-label="Assombrissement des creux">
+      <div class="hint">Ce qui reste de lumière dans un creux. À 1 les orbites redeviennent des bols éclairés.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>GAMMA</span><b id="vGam">1.05</b></div>
+      <input type="range" id="rGam" min="0.5" max="2.2" step="0.05" value="1.05" aria-label="Contraste">
+      <div class="hint">Sous 1 le crâne s'éclaircit, au-dessus il se creuse.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Orbites</span><b id="vSock">1.18</b></div>
+      <input type="range" id="rSock" min="0.75" max="1.3" step="0.01" value="1.18" aria-label="Taille des orbites">
+      <div class="hint">Grossit les deux ellipsoïdes creusés. Au-delà de 1.2 elles se rejoignent au milieu.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Pommettes</span><b id="vCheek">0.38</b></div>
+      <input type="range" id="rCheek" min="0.38" max="0.68" step="0.01" value="0.38" aria-label="Écartement des pommettes">
+      <div class="hint">Écartement des arcades zygomatiques. C'est ce qui donne au crâne sa largeur.</div>
+    </div>
+
+    <div class="field">
+      <div class="label"><span>Dents</span></div>
+      <div class="seg" role="group" aria-label="Dents">
+        <button data-teeth="1" aria-pressed="false">Oui</button>
+        <button data-teeth="0" aria-pressed="true">Non</button>
+      </div>
+      <div class="hint">Rayures dans l'ombrage, de part et d'autre de la fente. Pas des volumes.</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Comment c'est construit</h2>
+    <div class="split">
+      <svg id="plan" viewBox="-110 -125 220 300" role="img" aria-label="Coupe du crâne : les ellipsoïdes ajoutés en trait plein, les creux en pointillé"></svg>
+      <div class="legend">
+        <p>Une coupe de profil, le nez vers la droite. <b>Trait plein</b>&nbsp;: la
+           matière. <b>Pointillé</b>&nbsp;: ce qu'on creuse. En clair, les pièces
+           qui ne sont pas dans le plan de coupe (orbites, pommettes, fosses).</p>
+        <div class="hint">Le dessin est fait à partir des mêmes nombres que le
+          rendu&nbsp;: il suit les curseurs.</div>
+      </div>
+    </div>
+    <p>Chaque pixel envoie un rayon dans le crâne. On calcule d'un coup les
+       dix-huit intersections — un ellipsoïde, c'est une équation du second
+       degré, rien de plus — puis on avance de creux en creux jusqu'à trouver le
+       premier morceau de matière qui n'est pas évidé. À partir de là il ne
+       reste plus qu'à comparer des nombres, ce qui est ce qui rend l'ensemble
+       assez léger pour la carte.</p>
+    <p>Il n'y a donc ni maillage, ni tampon de profondeur, ni modèle à charger.
+       Le crâne tient dans dix-huit lignes de six nombres, et se modifie en les
+       déplaçant.</p>
+  </section>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis.
+       Dis-moi celles que tu veux garder.</p>
+    <pre id="settings"></pre>
+  </section>
+
+  <section>
+    <h2>Ce qu'il faut savoir</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Point</th><th>Où ça en est</th></tr></thead>
+        <tbody>
+          <tr><td>Vitesse</td><td>Mesuré&nbsp;: 1,6&nbsp;ms par image sur le Mac. En rapportant à un ESP32-S3 — 240&nbsp;MHz, calcul flottant à une opération par cycle, pas de compilation à la volée — ça donne <b>10 à 18 images/s</b> en pleine finesse, et la cadence visée en 2×2. C'est une extrapolation, pas une mesure&nbsp;: seul un flash tranchera. Le bouton BOOT bascule les deux modes sur la carte, exprès.</td></tr>
+          <tr><td>Le tramage</td><td>Une trame ordonnée&nbsp;: le seuil de noircissement change d'un pixel à l'autre selon une petite table. C'est ce qui fabrique des demi-teintes avec deux couleurs, sans jamais afficher de gris.</td></tr>
+          <tr><td>Les arêtes</td><td>Deux ellipsoïdes qui se rencontrent font une arête vive, pas un raccord doux. Sur un crâne ça tombe plutôt bien — l'arcade sourcilière, la pommette et le bord de l'orbite en sont — mais c'est la limite de la méthode.</td></tr>
+          <tr><td>Les dents</td><td>Un motif dans l'ombrage, pas des volumes. Les tailler pour de vrai coûterait une dizaine de primitives de plus.</td></tr>
+          <tr><td>L'arrière</td><td>Refait. La boîte crânienne <b>descend</b> maintenant jusqu'au niveau des dents, comme sur un vrai crâne, au lieu de s'arrêter à mi-hauteur&nbsp;; et l'arche de la mâchoire est évidée par l'arrière, ce qui ouvre le dessous en <b>U</b> et supprime du même coup la masse qui pendait sous l'occiput. Les deux sans ajouter de pièce&nbsp;: un rayon de plus sur l'ellipsoïde du crâne, un creux de plus sous la mâchoire. L'avant n'a pas bougé — vérifié image par image, 0,6&nbsp;% des pixels de face changent, et ce sont ceux du bord arrière du dôme.</td></tr>
+          <tr><td>Le profil</td><td>Meilleur qu'avant, mais toujours le côté le moins sûr&nbsp;: deux ellipsoïdes qui se croisent font une arête vive et ne se raccordent pas. <code>SWEEP_DEG</code> reste là si tu préfères un balancement autour de la face au tour complet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Ces valeurs sont celles du croquis&nbsp;: <code>SkullTurn/SkullTurn.ino</code>
+    et la vue 13 de <code>CyberCycle/</code>, en tête du tour. Les curseurs
+    partent de là.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============================================================
+  //  Le crâne : cx, cy, cz, rx, ry, rz
+  // ============================================================
+  // Ordre : ce qui porte la silhouette d'abord, les détails ensuite.
+  const ADD = [
+    [ 0.00,  0.10, -0.26,  0.56, 0.68, 0.68],   // 0 boîte crânienne, descendue
+    [ 0.00,  0.20,  0.14,  0.49, 0.47, 0.42],   // 1 frontal : le front et l'arcade
+    [ 0.00, -0.12,  0.26,  0.45, 0.42, 0.40],   // 2 massif facial
+    [ 0.00, -0.44,  0.24,  0.33, 0.17, 0.31],   // 3 maxillaire
+    [ 0.00, -0.60,  0.18,  0.36, 0.16, 0.36],   // 4 corps de la mandibule
+    [ 0.32, -0.32,  0.04,  0.07, 0.24, 0.15],   // 5 branche montante droite
+    [-0.32, -0.32,  0.04,  0.07, 0.24, 0.15],   // 6 branche montante gauche
+    [ 0.46, -0.04,  0.00,  0.10, 0.07, 0.36],   // 7 arcade zygomatique droite
+    [-0.46, -0.04,  0.00,  0.10, 0.07, 0.36],   // 8 arcade zygomatique gauche
+  ];
+  const SUB = [
+    [ 0.25, -0.01,  0.56,  0.19, 0.19,  0.22],  // 0 orbite droite
+    [-0.25, -0.01,  0.56,  0.19, 0.19,  0.22],  // 1 orbite gauche
+    [ 0.00, -0.26,  0.52,  0.10, 0.15,  0.20],  // 2 ouverture nasale
+    [ 0.00, -0.51,  0.30,  0.30, 0.030, 0.30],  // 3 fente de la bouche
+    [ 0.60,  0.18, -0.08,  0.22, 0.30,  0.34],  // 4 fosse temporale droite
+    [-0.60,  0.18, -0.08,  0.22, 0.30,  0.34],  // 5 fosse temporale gauche
+    [ 0.00, -1.06,  0.10,  0.50, 0.38,  0.50],  // 6 dessous du menton
+    [ 0.00, -0.62, -0.02,  0.26, 0.22,  0.42],  // 7 arche de la mâchoire, évidée
+    [ 0.00, -1.02, -0.42,  0.46, 0.42,  0.44],  // 8 rase le bas de l'arrière
+  ];
+  const I_ZYG_R = 7, I_ZYG_L = 8, I_SOCKET = 0;   // ce que les curseurs déplacent
+
+  const N_ADD = ADD.length, N_SUB = SUB.length, N_PRIM = N_ADD + N_SUB;
+  const BOUND_R = 1.40, Z0 = 3.0, W = 128, H = 128;
+
+  const BAYER8 = [
+     0,32, 8,40, 2,34,10,42,  48,16,56,24,50,18,58,26,
+    12,44, 4,36,14,46, 6,38,  60,28,52,20,62,30,54,22,
+     3,35,11,43, 1,33, 9,41,  51,19,59,27,49,17,57,25,
+    15,47, 7,39,13,45, 5,37,  63,31,55,23,61,29,53,21];
+  const BAYER4 = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+
+  const prim  = [];
+  const invR  = new Float64Array(N_PRIM * 3);
+  const dpv   = new Float64Array(N_PRIM * 3);
+  const invA  = new Float64Array(N_PRIM);
+  const tIn   = new Float64Array(N_PRIM);
+  const tOut  = new Float64Array(N_PRIM);
+  const hitP  = new Uint8Array(N_PRIM);
+
+  function applyGeometry(socket, cheek) {
+    prim.length = 0;
+    for (const q of ADD) prim.push(q.slice());
+    for (const q of SUB) prim.push(q.slice());
+    for (const k of [N_ADD + I_SOCKET, N_ADD + I_SOCKET + 1]) {
+      prim[k][3] *= socket; prim[k][4] *= socket; prim[k][5] *= socket;
+    }
+    prim[I_ZYG_R][0] = cheek; prim[I_ZYG_L][0] = -cheek;
+  }
+
+  // ============================================================
+  //  Un rayon
+  // ============================================================
+  function shade(ox, oy, oz, dx, dy, dz, lx, ly, lz, p) {
+    for (let i = 0; i < N_PRIM; i++) {
+      const q = prim[i];
+      const px = (ox - q[0]) * invR[i*3], py = (oy - q[1]) * invR[i*3+1], pz = (oz - q[2]) * invR[i*3+2];
+      const b = px*dpv[i*3] + py*dpv[i*3+1] + pz*dpv[i*3+2];
+      const c = px*px + py*py + pz*pz - 1;
+      const disc = b*b - c / invA[i];
+      if (disc <= 0) { hitP[i] = 0; continue; }
+      const sq = Math.sqrt(disc);
+      hitP[i] = 1;
+      tIn[i]  = (-b - sq) * invA[i];
+      tOut[i] = (-b + sq) * invA[i];
+    }
+
+    let t = 1e30, k = -1;
+    for (let i = 0; i < N_ADD; i++) if (hitP[i] && tIn[i] < t) { t = tIn[i]; k = i; }
+    if (k < 0) return 0;
+
+    let inward = false;
+    for (let guard = 0; guard < 6; guard++) {
+      let jBest = -1, tBest = t;
+      for (let j = N_ADD; j < N_PRIM; j++)
+        if (hitP[j] && tIn[j] < t && t < tOut[j] && tOut[j] > tBest) { tBest = tOut[j]; jBest = j; }
+      if (jBest < 0) break;
+
+      t = tBest;
+      let inside = -1;
+      for (let i = 0; i < N_ADD; i++) if (hitP[i] && tIn[i] < t && t < tOut[i]) { inside = i; break; }
+      if (inside >= 0) { k = jBest; inward = true; continue; }
+
+      let nt = 1e30, ni = -1;
+      for (let i = 0; i < N_ADD; i++) if (hitP[i] && tIn[i] > t + 1e-4 && tIn[i] < nt) { nt = tIn[i]; ni = i; }
+      if (ni < 0) return 0;
+      t = nt; k = ni; inward = false;
+    }
+
+    const q = prim[k];
+    const hx = ox + t*dx, hy = oy + t*dy, hz = oz + t*dz;
+    let nx = (hx - q[0]) / (q[3]*q[3]);
+    let ny = (hy - q[1]) / (q[4]*q[4]);
+    let nz = (hz - q[2]) / (q[5]*q[5]);
+    let inv = 1 / Math.sqrt(nx*nx + ny*ny + nz*nz);
+    if (inward) inv = -inv;
+    nx *= inv; ny *= inv; nz *= inv;
+
+    let diff = nx*lx + ny*ly + nz*lz; if (diff < 0) diff = 0;
+    let ndv = -(nx*dx + ny*dy + nz*dz); if (ndv < 0) ndv = 0;
+    const rim = p.rim * Math.pow(1 - ndv, 3);
+
+    const ux = lx - dx, uy = ly - dy, uz = lz - dz;
+    const ul = 1 / Math.sqrt(ux*ux + uy*uy + uz*uz);
+    let spec = nx*ux*ul + ny*uy*ul + nz*uz*ul;
+    spec = spec > 0 ? Math.pow(spec, 14) * 0.22 : 0;
+
+    let v = p.ambient + (1 - p.ambient) * diff + rim + spec;
+    // Une paroi creusée ne voit qu'un bout de ciel. Sans ça les orbites se
+    // lisent comme des bols éclairés, pas comme des trous : c'est la ligne
+    // qui a fait passer l'image de « boule » à « crâne ».
+    if (inward) v *= p.cavity;
+
+    if (p.teeth && hy > -0.60 && hy < -0.40 && hz > 0.05) {
+      const a = Math.atan2(hx, hz + 0.2) * 5.6;
+      const f = Math.abs(a - Math.round(a));
+      v *= 0.55 + 0.45 * Math.min(1, f * 4.5);
+    }
+
+    if (v < 0) v = 0; else if (v > 1) v = 1;
+    return p.gamma === 1 ? v : Math.pow(v, p.gamma);
+  }
+
+  // ============================================================
+  //  Une image
+  // ============================================================
+  function renderFrame(out, p) {
+    const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+    const cx = Math.cos(p.tilt), sx = Math.sin(p.tilt);
+    const m00 = cy,      m01 = 0,   m02 = -sy;
+    const m10 = sy * sx, m11 = cx,  m12 =  cy * sx;
+    const m20 = sy * cx, m21 = -sx, m22 =  cy * cx;
+    const dx = -m02, dy = -m12, dz = -m22;
+
+    for (let i = 0; i < N_PRIM; i++) {
+      const q = prim[i];
+      const ix = 1/q[3], iy = 1/q[4], iz = 1/q[5];
+      invR[i*3] = ix; invR[i*3+1] = iy; invR[i*3+2] = iz;
+      const ax = dx*ix, ay = dy*iy, az = dz*iz;
+      dpv[i*3] = ax; dpv[i*3+1] = ay; dpv[i*3+2] = az;
+      invA[i] = 1 / (ax*ax + ay*ay + az*az);
+    }
+
+    const le = p.lightEl, la = p.lightAz;
+    const wx = Math.cos(le)*Math.sin(la), wy = Math.sin(le), wz = Math.cos(le)*Math.cos(la);
+    const lx = m00*wx + m01*wy + m02*wz;
+    const ly = m10*wx + m11*wy + m12*wz;
+    const lz = m20*wx + m21*wy + m22*wz;
+
+    const sc = 1 / p.zoom, half = W * 0.5;
+    const bay = p.bayer8 ? BAYER8 : BAYER4;
+    const bm = p.bayer8 ? 7 : 3, bs = p.bayer8 ? 3 : 2, bd = p.bayer8 ? 64 : 16;
+    const step = p.half ? 2 : 1;
+
+    // rx, ry comptent les rayons, pas les pixels : c'est sur eux qu'on indexe
+    // la trame. Sinon, en 2×2, on ne tire qu'un seuil sur quatre — tous du
+    // côté sombre — et l'image part en blanc.
+    let ry = 0;
+    for (let py = 0; py < H; py += step, ry++) {
+      const sv = -((py + 0.5) - half) * sc;
+      let rx = 0;
+      for (let px = 0; px < W; px += step, rx++) {
+        const su = ((px + 0.5) - half) * sc;
+        let v = 0;
+        if (su*su + sv*sv < BOUND_R*BOUND_R) {
+          v = shade(m00*su + m01*sv + m02*Z0,
+                    m10*su + m11*sv + m12*Z0,
+                    m20*su + m21*sv + m22*Z0,
+                    dx, dy, dz, lx, ly, lz, p);
+        }
+        let col;
+        if (p.grey) {
+          const g = (v * 255) | 0;
+          col = 0xFF000000 | (g << 16) | (g << 8) | g;
+        } else {
+          col = v > (bay[((ry & bm) << bs) | (rx & bm)] + 0.5) / bd ? 0xFFFFFFFF : 0xFF000000;
+        }
+        if (step === 1) out[py*W + px] = col;
+        else { const a = py*W + px, b = a + W; out[a] = col; out[a+1] = col; out[b] = col; out[b+1] = col; }
+      }
+    }
+  }
+
+  // ============================================================
+  //  Page
+  // ============================================================
+  const D2R = Math.PI / 180;
+  const st = {
+    spinS: 12, tiltDeg: 8, zoom: 64, azDeg: -11, elDeg: 37,
+    ambient: 0.14, rim: 0.14, gamma: 1.05, socket: 1.18, cheek: 0.38,
+    cavity: 0.42, sweepDeg: 110,
+    teeth: 0, grey: 0, bayer8: false, half: true,
+    t: 0, yaw: 0, tilt: 8 * D2R, lightAz: 35 * D2R, lightEl: 30 * D2R,
+    playing: true,
+  };
+
+  const cv = document.getElementById("screen");
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(W, H);
+  const buf = new Uint32Array(img.data.buffer);
+
+  function paint() {
+    // Tour complet, ou balancement autour de la face : c'est la même horloge,
+    // seule la façon de la lire change.
+    st.yaw = st.sweepDeg >= 360
+      ? 2 * Math.PI * st.t / st.spinS
+      : 0.5 * st.sweepDeg * D2R * Math.sin(2 * Math.PI * st.t / st.spinS);
+    st.tilt = st.tiltDeg * D2R;
+    st.lightAz = st.azDeg * D2R;
+    st.lightEl = st.elDeg * D2R;
+    renderFrame(buf, st);
+    ctx.putImageData(img, 0, 0);
+  }
+
+  const $ = (id) => document.getElementById(id);
+
+  function settings() {
+    $("settings").textContent =
+      "#define SPIN_S     " + st.spinS.toFixed(1) + "f   // s par tour\n" +
+      "#define SWEEP_DEG  " + st.sweepDeg.toFixed(0) + "f  // 360 = tour complet\n" +
+      "#define TILT_DEG   " + st.tiltDeg.toFixed(1) + "f\n" +
+      "#define ZOOM_PX    " + st.zoom.toFixed(1) + "f\n" +
+      "#define LIGHT_AZ   " + st.azDeg.toFixed(1) + "f\n" +
+      "#define LIGHT_EL   " + st.elDeg.toFixed(1) + "f\n" +
+      "#define AMBIENT    " + st.ambient.toFixed(2) + "f\n" +
+      "#define RIM        " + st.rim.toFixed(2) + "f\n" +
+      "#define CAVITY     " + st.cavity.toFixed(2) + "f\n" +
+      "#define GAMMA      " + st.gamma.toFixed(2) + "f\n" +
+      "#define SOCKET     " + st.socket.toFixed(2) + "f\n" +
+      "#define CHEEK      " + st.cheek.toFixed(2) + "f\n" +
+      "#define TEETH      " + st.teeth + "\n" +
+      "#define BAYER_8    " + (st.bayer8 ? 1 : 0) + "\n" +
+      "#define HALF_RES   " + (st.half ? 1 : 0);
+  }
+
+  // ---- la coupe --------------------------------------------------
+  function drawPlan() {
+    const s = 100, out = [];
+    for (let i = 0; i < N_PRIM; i++) {
+      const q = prim[i];
+      const off = Math.abs(q[0]) > 0.02;
+      const cls = (i < N_ADD ? "solid" : "hole") + (off ? " off" : "");
+      out.push('<ellipse class="' + cls + '" cx="' + (q[2]*s).toFixed(1) +
+               '" cy="' + (-q[1]*s).toFixed(1) + '" rx="' + (q[5]*s).toFixed(1) +
+               '" ry="' + (q[4]*s).toFixed(1) + '"/>');
+    }
+    out.push('<text x="-104" y="-108">profil, nez à droite</text>');
+    $("plan").innerHTML = out.join("");
+  }
+
+  function refresh() { applyGeometry(st.socket, st.cheek); drawPlan(); settings(); paint(); }
+
+  function press(group, attr, value) {
+    group.querySelectorAll("button").forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset[attr] === String(value))));
+  }
+
+  const sliders = [
+    ["rSpin","vSpin","spinS",(v)=>v.toFixed(1)+" s"],
+    ["rTilt","vTilt","tiltDeg",(v)=>v.toFixed(0)+"°"],
+    ["rZoom","vZoom","zoom",(v)=>v.toFixed(0)+" px"],
+    ["rAz","vAz","azDeg",(v)=>v.toFixed(0)+"°"],
+    ["rEl","vEl","elDeg",(v)=>v.toFixed(0)+"°"],
+    ["rAmb","vAmb","ambient",(v)=>v.toFixed(2)],
+    ["rRim","vRim","rim",(v)=>v.toFixed(2)],
+    ["rGam","vGam","gamma",(v)=>v.toFixed(2)],
+    ["rSock","vSock","socket",(v)=>v.toFixed(2)],
+    ["rCheek","vCheek","cheek",(v)=>v.toFixed(2)],
+    ["rSweep","vSweep","sweepDeg",(v)=>v.toFixed(0)+"°"],
+    ["rCav","vCav","cavity",(v)=>v.toFixed(2)],
+  ];
+  for (const [rid, vid, key, fmt] of sliders) {
+    $(rid).addEventListener("input", (e) => {
+      st[key] = +e.target.value;
+      $(vid).textContent = fmt(st[key]);
+      refresh();
+    });
+  }
+
+  document.querySelectorAll("[data-grey]").forEach((b) => b.addEventListener("click", () => {
+    st.grey = +b.dataset.grey; press(b.parentElement, "grey", st.grey); refresh();
+  }));
+  document.querySelectorAll("[data-bayer]").forEach((b) => b.addEventListener("click", () => {
+    st.bayer8 = b.dataset.bayer === "8"; press(b.parentElement, "bayer", b.dataset.bayer); refresh();
+  }));
+  document.querySelectorAll("[data-half]").forEach((b) => b.addEventListener("click", () => {
+    st.half = b.dataset.half === "1"; press(b.parentElement, "half", b.dataset.half); refresh();
+  }));
+  document.querySelectorAll("[data-teeth]").forEach((b) => b.addEventListener("click", () => {
+    st.teeth = +b.dataset.teeth; press(b.parentElement, "teeth", st.teeth); refresh();
+  }));
+
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => { st.t += 1 / 30; paint(); });
+
+  // ---- boucle ----------------------------------------------------
+  let prev = performance.now(), acc = 0, fpsAcc = 0, fpsN = 0, msAcc = 0;
+  const FRAME = 1 / 30;
+
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      if (acc >= FRAME) {
+        const n = Math.min(Math.floor(acc / FRAME), 3);
+        acc -= n * FRAME;
+        st.t += n * FRAME;
+        const t0 = performance.now();
+        paint();
+        msAcc += performance.now() - t0;
+        fpsAcc += real * (1 / n); fpsN++;
+        if (fpsN >= 20) {
+          $("fpsline").textContent =
+            (msAcc / fpsN).toFixed(1) + " ms par image  ·  " +
+            (st.half ? "1 rayon pour 4 pixels" : "1 rayon par pixel");
+          fpsAcc = 0; fpsN = 0; msAcc = 0;
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  refresh();
+  requestAnimationFrame(tick);
+})();
+</script>
