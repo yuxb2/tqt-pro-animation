@@ -1,7 +1,7 @@
 /*
  * SkullTurn — LilyGO T-QT Pro (ESP32-S3, écran 128x128)
  * -----------------------------------------------------
- * Un crâne en volume, éclairé, qui tourne lentement sur lui-même. Deux
+ * Un crâne en volume, éclairé, qui se balance lentement sur son axe. Deux
  * couleurs, pas une de plus : les demi-teintes sont tramées.
  *
  * Il n'y a ni modèle 3D, ni maillage, ni texture, ni tampon de profondeur.
@@ -41,11 +41,12 @@
  * ne se raccordent pas. SWEEP_DEG est la réponse : sous 360, le crâne se
  * balance autour de sa face au lieu de faire le tour.
  *
- * Libs : TFT_eSPI (version LilyGO du dépôt, Setup211) — rien d'autre.
+ * Pas de boutons, et c'est un choix. Mesuré sur la carte : la
+ * demi-résolution tient la cadence, la pleine rame. Il n'y avait donc pas
+ * deux modes à proposer mais un seul qui marche, et rien à basculer. Tout
+ * se règle dans les constantes ci-dessous, à la compilation.
  *
- * Boutons :
- *   IO00 (BOOT) → finesse : 1 rayon par pixel / 1 rayon pour quatre
- *   IO47 (KEY)  → mouvement : tour complet / balancement
+ * Libs : TFT_eSPI (version LilyGO du dépôt, Setup211) — rien d'autre.
  */
 
 #include <TFT_eSPI.h>
@@ -84,11 +85,6 @@
 #define HALF_RES   1        // 1 = un rayon pour quatre pixels
 #define BAYER_8    0        // 1 = trame 8x8 (plus de nuances), 0 = 4x4
 #define TARGET_FPS 30
-
-// ---- Boutons --------------------------------------------------
-#define PIN_BTN_LEFT   0    // BOOT
-#define PIN_BTN_RIGHT  47   // KEY
-#define BTN_DEBOUNCE_MS 220
 
 // ============================================================
 //  Le crâne — cx, cy, cz, rx, ry, rz
@@ -175,11 +171,13 @@ static bool  skHit[N_PRIM];
 // ============================================================
 //  État
 // ============================================================
-static bool  halfRes  = (HALF_RES != 0);
-static bool  fullTurn = (SWEEP_DEG >= 360.0f);
-static float clockT   = 0.0f;
+// Des constantes, pas des modes : le compilateur les replie et la branche
+// inutile ne part même pas dans le binaire.
+static const bool skFullTurn = (SWEEP_DEG >= 360.0f);
+static const int  skStep     = (HALF_RES ? 2 : 1);
+
+static float clockT = 0.0f;
 static uint32_t lastFrameUs = 0;
-static uint32_t lastBtnMs   = 0;
 
 // ============================================================
 //  Un rayon
@@ -287,7 +285,7 @@ static float shade(float ox, float oy, float oz,
 //  Une image
 // ============================================================
 static void drawSkull(float t) {
-  float yaw = fullTurn
+  float yaw = skFullTurn
             ? TWO_PI_F * t / SPIN_S
             : 0.5f * SWEEP_DEG * DEG * sinf(TWO_PI_F * t / SPIN_S);
   float tilt = TILT_DEG * DEG;
@@ -323,7 +321,7 @@ static void drawSkull(float t) {
 
   const float sc = 1.0f / ZOOM_PX;
   const float half = SCREEN_W * 0.5f;
-  const int step = halfRes ? 2 : 1;
+  const int step = skStep;
 
   // sx, sy comptent les rayons, pas les pixels : c'est sur eux qu'on indexe
   // la trame. Sinon, en demi-résolution, on ne tirerait qu'un seuil sur
@@ -363,9 +361,6 @@ static void drawSkull(float t) {
 //  Setup
 // ============================================================
 void setup() {
-  pinMode(PIN_BTN_LEFT,  INPUT_PULLUP);
-  pinMode(PIN_BTN_RIGHT, INPUT_PULLUP);
-
   tft.init();
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
@@ -380,22 +375,6 @@ void setup() {
 }
 
 // ============================================================
-//  Boutons (debounce simple, pas de lib externe)
-// ============================================================
-static void pollButtons() {
-  uint32_t now = millis();
-  if (now - lastBtnMs < BTN_DEBOUNCE_MS) return;
-
-  if (digitalRead(PIN_BTN_LEFT) == LOW) {
-    halfRes = !halfRes;
-    lastBtnMs = now;
-  } else if (digitalRead(PIN_BTN_RIGHT) == LOW) {
-    fullTurn = !fullTurn;
-    lastBtnMs = now;
-  }
-}
-
-// ============================================================
 //  Boucle
 // ============================================================
 void loop() {
@@ -404,7 +383,6 @@ void loop() {
   lastFrameUs = nowUs;
   if (dt > 0.1f) dt = 0.1f;
 
-  pollButtons();
   clockT += dt;
   drawSkull(clockT);
 

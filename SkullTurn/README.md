@@ -1,7 +1,7 @@
 # SkullTurn — T-QT Pro
 
-Un crâne en volume, éclairé, qui tourne lentement sur lui-même. Deux couleurs,
-pas une de plus : les demi-teintes sont tramées.
+Un crâne en volume, éclairé, qui se balance lentement sur son axe. Deux
+couleurs, pas une de plus : les demi-teintes sont tramées.
 
 Elle est **aussi la vue 13 de `CyberCycle/`**, et la première du tour : c'est
 elle qui démarre quand la carte s'allume. Ce dossier-ci est le croquis
@@ -13,15 +13,20 @@ constante : c'est là qu'on règle, dans le navigateur, sans reflasher.
 
 ---
 
-## 1. Boutons
+## 1. Pas de boutons, et pas de variante
 
-| Bouton | Action |
-| --- | --- |
-| **IO00** (BOOT) | finesse : 1 rayon pour quatre ↔ 1 rayon par pixel |
-| **IO47** (KEY) | mouvement : balancement ↔ tour complet |
+C'est le seul croquis du dépôt sans rien à basculer, et la seule vue de
+`CyberCycle/` sans variante sur le bouton droit. Ce n'est pas un oubli.
 
-Dans `CyberCycle/`, où le bouton gauche sert à changer d'animation, c'est le
-bouton droit qui fait passer l'amplitude : **110° → 360° → 180°**.
+Deux modes avaient été prévus — pleine résolution contre demi, tour complet
+contre balancement. **Mesuré sur la carte** : en demi-résolution ça tient la
+cadence, en pleine ça rame. Il n'y avait donc pas deux modes à proposer, mais
+un seul qui marche. Et le tour complet traverse le profil, qui est le point
+faible du modèle (§5). Rien à choisir, donc rien à offrir.
+
+Tout se règle dans les constantes du fichier, à la compilation. `skFullTurn`
+et `skStep` sont des `static const` et non des variables : la branche inutile
+ne part même pas dans le binaire.
 
 ---
 
@@ -135,12 +140,12 @@ pour la carte.
 de sa face au lieu de faire le tour, et ne montre jamais son mauvais profil. À
 120° le mouvement reste vivant et tout ce qu'on voit se tient.
 
-**La vitesse est une estimation.** 1,5 ms par image mesuré sur le Mac en pleine
-finesse ; rapporté à un ESP32-S3, ça donne 10 à 18 images/s. C'est pour ça que
-`HALF_RES` est à 1 par défaut, ici comme dans `CyberCycle` : un rayon pour
-quatre pixels, donc quatre fois moins de travail, et le gros grain va plutôt
-bien à l'écran. Ce n'est pas une mesure sur la carte, et seul un flash
-tranchera.
+**La vitesse, vue sur la carte.** L'estimation de départ — 1,5 ms par image sur
+le Mac, donc 10 à 18 images/s sur un ESP32-S3 — s'est vérifiée dans le bon
+sens : flashé en USB, `HALF_RES = 1` tient la cadence et la pleine résolution
+rame visiblement. C'est ce constat qui a fait retirer le bouton qui basculait
+entre les deux. Le gros grain n'est donc pas un compromis subi : c'est le seul
+mode qui marche, et il va plutôt bien à l'écran.
 
 ---
 
@@ -159,7 +164,7 @@ tranchera.
 | `GAMMA` | `1.05` | sous 1 ça éclaircit, au-dessus ça creuse. À 1 exactement, le `powf` sort du binaire tout seul — au-dessus il coûte un `powf` par pixel touché. |
 | `TEETH` | `0` | les dents : des rayures dans l'ombrage, pas des volumes. Coupées : à cette taille et en demi-résolution elles brouillaient plus qu'elles ne disaient. |
 | `BAYER_8` | `0` | 0 = trame 4×4, 1 = trame 8×8 (plus de nuances, grain plus fin). |
-| `HALF_RES` | `1` | 1 = un rayon pour quatre pixels. |
+| `HALF_RES` | `1` | 1 = un rayon pour quatre pixels. **À ne pas mettre à 0 sur la carte** : la pleine résolution rame, c'est mesuré (§1). |
 
 ---
 

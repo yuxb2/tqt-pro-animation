@@ -35,10 +35,12 @@
  *  13 Skull     a lit skull in the round, rocking about its own axis:
  *               eighteen ellipsoids, nine added and nine carved out,
  *               one ray per pixel, dithered to pure black and white.
- *               First in the rotation
+ *               First in the rotation, and the only view with no
+ *               variant - there is nothing here worth switching
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
+ *                (Skull has none, so on that view it does nothing)
  *
  * Everything shares one static framebuffer. The celestial scan is the only
  * view that also writes to the panel directly, for its text: the framebuffer
@@ -97,7 +99,7 @@ OneButton btnRight(PIN_BTN_R, true, true);
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 3 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
@@ -2573,6 +2575,7 @@ static void animColorText(float t) {
 //          white.
 // ======================================================================
 #define SK_SPIN_S    12.0f    // seconds for one sweep, out and back
+#define SK_SWEEP_DEG 110.0f   // it rocks about its face; 360 would walk the profile
 #define SK_TILT_DEG   8.0f    // fixed tilt; positive = seen from a little above
 #define SK_ZOOM_PX   64.0f    // screen pixels per model unit
 #define SK_BOUND_R    1.45f   // bounding sphere: it cuts the background short
@@ -2584,9 +2587,10 @@ static void animColorText(float t) {
 #define SK_CAVITY     0.42f   // light left at the bottom of a hollow
 #define SK_GAMMA      1.05f
 #define SK_HALF_RES   1       // one ray for four pixels
-// The teeth of the standalone sketch - stripes in the shading rather than
-// volumes - are switched off here, so that code is not carried over. It lives
-// in SkullTurn/SkullTurn.ino behind TEETH if it is ever wanted.
+// Two things the standalone sketch can do and this one deliberately cannot:
+// the teeth (stripes in the shading rather than volumes, switched off here so
+// the code is not carried over) and full resolution. Both live in
+// SkullTurn/SkullTurn.ino behind TEETH and HALF_RES.
 
 static const float SK_PRIM[18][6] = {
   { 0.00f,  0.10f, -0.26f,  0.56f,  0.68f,  0.68f },   // braincase, reaching low
@@ -2620,10 +2624,6 @@ static const uint8_t skBayer[16] = {
    3, 11,  1,  9,
   15,  7, 13,  5,
 };
-
-// The right button picks how far it swings. 360 is the full turn, which walks
-// through the profile - the weakest angle of the model.
-static const float skSweep[3] = { 110.0f, 360.0f, 180.0f };
 
 // Same for the whole screen under an orthographic view, so worked out once a
 // frame rather than sixteen thousand times.
@@ -2716,10 +2716,11 @@ static float skShade(float ox, float oy, float oz,
 }
 
 static void animSkull(float t) {
-  float sweep = skSweep[variant[13]];
-  float yaw = (sweep >= 360.0f)
-            ? TWO_PI * t / SK_SPIN_S
-            : 0.5f * sweep * DEG_TO_RAD * sinf(TWO_PI * t / SK_SPIN_S);
+  // The only view with no variant, on purpose: measured on the board, half
+  // resolution holds the frame rate and full resolution does not, so there
+  // was never a second mode worth offering. Everything else here is a
+  // compile-time constant.
+  float yaw = 0.5f * SK_SWEEP_DEG * DEG_TO_RAD * sinf(TWO_PI * t / SK_SPIN_S);
   float tilt = SK_TILT_DEG * DEG_TO_RAD;
 
   float cy = cosf(yaw),  sy = sinf(yaw);
@@ -2833,7 +2834,6 @@ void setup() {
   variant[7] = 0;   // Scan: medium contour density
   variant[10] = 0;  // World: graticule and continents together
   variant[11] = 0;  // Hypno: medium band weight
-  variant[13] = 0;  // Skull: the 110-degree sweep, which stays off the profile
 
   btnLeft.attachClick([]() {                 // next view in the schedule
     slot = (slot + 1) % N_VIEWS;

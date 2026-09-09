@@ -150,7 +150,9 @@ Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
 - `HypnoEye/` — œil op-art dont la pupille regarde à droite et à gauche en
   resserrant les anneaux du côté visé.
 - `SkullTurn/` — un crâne en volume, éclairé, qui se balance sur son axe.
-  Dix-huit ellipsoïdes et un rayon par pixel, tramé en noir et blanc.
+  Dix-huit ellipsoïdes et un rayon par pixel, tramé en noir et blanc. C'est la
+  seule vue **sans variante** : mesuré sur la carte, il n'y avait qu'un mode de
+  rendu qui tienne la cadence, donc rien à basculer.
 
 ### Comment on fabrique une nouvelle animation
 
