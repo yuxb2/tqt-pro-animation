@@ -1,0 +1,395 @@
+<title>CurtainEye</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Une colonne : l'écran du T-QT en tête, les curseurs dessous, puis les
+     #define à recopier. Même habit que SkullTurn/preview.html. */
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+    --accent: #E8461F;   /* l'orange de l'affiche */
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #FF6A3D;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #FF6A3D;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding-block: clamp(1.25rem, 4vw, 3rem) 5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(2.5rem, 6vw, 4rem); }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+  .eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-family: var(--bitmap); font-weight: 400; font-size: clamp(1.7rem, 7vw, var(--step-3)); line-height: 1.1; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; max-width: 36rem; color: var(--ink-2); }
+
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+  .device { padding: 14px; background: var(--screen-bg); border: 1px solid var(--rule); line-height: 0; max-width: 100%; }
+  .device canvas { display: block; width: min(384px, 78vw); max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+  .caption { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); overflow: hidden; }
+  .field { display: flex; flex-direction: column; gap: 0.55rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--rule); margin-bottom: -1px; min-width: 0; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; }
+  .field .label b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: var(--step--1); padding: 0.4rem 0.3rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-right-width: 0; cursor: pointer; }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible, input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: var(--rule); margin: 0.7rem 0; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border: 0; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--accent); border: 0; border-radius: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 { font-family: var(--bitmap); font-weight: 400; font-size: var(--step-1); margin: 0; padding-bottom: 0.6rem; border-bottom: 1px solid var(--rule); letter-spacing: 0.02em; }
+  section p { margin: 0; max-width: 40rem; }
+
+  pre { font-family: var(--mono); font-size: var(--step--1); line-height: 1.7; border: 1px solid var(--rule); padding: 1rem 1.1rem; margin: 0; overflow-x: auto; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+  footer { font-size: var(--step--1); color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · Rideaux</div>
+    <h1>CurtainEye</h1>
+    <p>Le thème Rideaux ramené sur un seul écran, comme sur l'affiche : un œil
+       fait de formes simples au milieu, et deux familles de cercles noirs,
+       centrées au-dessus et au-dessous de lui, qui grandissent sans fin et se
+       croisent en treillis. L'œil ne bouge pas : seul son reflet fait le tour
+       de la pupille.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device"><canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation CurtainEye"></canvas></div>
+    <div class="caption" id="fpsline">—</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu vise 40 images/s, comme le croquis.</div>
+    </div>
+    <div class="field">
+      <div class="label"><span>Vitesse de l'aperçu</span></div>
+      <div class="seg" role="group" aria-label="Vitesse de l'aperçu">
+        <button data-speed="1" aria-pressed="true">× 1</button>
+        <button data-speed="0.25" aria-pressed="false">× ¼</button>
+      </div>
+      <div class="hint">Le ralenti n'existe que dans l'aperçu.</div>
+    </div>
+    <!-- les curseurs sont ajoutés ici par le script, un par constante -->
+  </div>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis.
+       Copie-les et colle-les-moi : je les reporte dans le croquis.</p>
+    <pre id="settings"></pre>
+    <div class="seg" style="max-width: 28rem">
+      <button id="btnCopy">Copier les réglages</button>
+      <button id="btnReset">Revenir au croquis</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce qu'il faut savoir</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Point</th><th>Où ça en est</th></tr></thead>
+        <tbody>
+          <tr><td>D'où il vient</td><td>C'est le thème Rideaux des Yeux, dans sa dernière version : pas de clignement, le reflet qui tourne en 7 s, les cercles espacés et affinés à ta demande. Les formes et les couleurs de l'œil sont reprises telles quelles.</td></tr>
+          <tr><td>Le centre des cercles</td><td>Sur le mur, il était entre les deux écrans, si bien que le T-QT ne voyait que des arcs venus de la gauche. Ici les deux familles sont centrées sur l'œil, comme sur l'affiche d'origine.</td></tr>
+          <tr><td>Les proportions</td><td>L'œil garde sa taille du mur, 115 px de large. Les cercles sont plus serrés (un tous les 20 px), plus fins et plus rapides, et le reflet tourne en 5,6 s.</td></tr>
+          <tr><td>Les bords lissés</td><td>Sur le mur, l'œil était calculé une fois au démarrage, sur seize points par pixel, et rangé en mémoire. Ici chaque bord est lissé à partir de sa distance au pixel, à chaque image : pas de table, et la taille de l'œil se règle comme le reste.</td></tr>
+          <tr><td>Vitesse</td><td>Estimée, pas mesurée : 42 images/s sur le mur, avec des tables précalculées. Sans elles, deux racines carrées de plus par pixel : sans doute <b>30 à 40 images/s</b>. Seul un flash le confirmera.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Ces valeurs sont celles du croquis <code>CurtainEye/CurtainEye.ino</code>.
+    Les curseurs partent de là.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- core:start ---------------------------------------------
+  // Le même code que CurtainEye.ino, ligne pour ligne. P porte les #define.
+  const SCREEN_W = 128, SCREEN_H = 128;
+  const RI_ORANGE = 0xF204, RI_CREAM = 0xFFF8, RI_RINGC = 0xFFFC, RI_BLUEC = 0x2BD5;
+
+  const sinLut = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) sinLut[i] = Math.sin(i * (2 * Math.PI / 1024));
+  const sinTurn = (turns) => sinLut[((turns * 1024) | 0) & 1023];
+  const clockPhase = (clock, periodMs) => (clock % periodMs) / periodMs;
+  const frac = (x) => x - Math.floor(x);
+  function mix565(a, b, t) {
+    if (t <= 0) return a;
+    if (t >= 256) return b;
+    const ra = a >> 11, ga = (a >> 5) & 63, ba = a & 31;
+    const rb = b >> 11, gb = (b >> 5) & 63, bb = b & 31;
+    return ((ra + (((rb - ra) * t) >> 8)) << 11) | ((ga + (((gb - ga) * t) >> 8)) << 5) | (ba + (((bb - ba) * t) >> 8));
+  }
+  const cover = (d) => d >= 0.5 ? 256 : (d <= -0.5 ? 0 : ((d + 0.5) * 256) | 0);
+
+  // L'amande à deux arcs : rayon R des arcs, leurs centres à ±c = ±(R − H)
+  const vesicaR = (W, H) => (W * W + H * H) / (2 * H);
+  function vesicaDist(u, v, R, c) {
+    const d1 = Math.sqrt(u * u + (v - c) * (v - c)), d2 = Math.sqrt(u * u + (v + c) * (v + c));
+    return (d1 > d2 ? d1 : d2) - R;
+  }
+
+  // Les tailles de l'œil, comme les #define du croquis qui dépendent de RI_SC
+  function eyeDims(P) {
+    const s = P.RI_SC;
+    return { W_OUT: 50 * s, H_OUT: 28.5 * s, W_IN: 40 * s, H_IN: 22 * s, IRIS: 27 * s, RING: 20.6 * s,
+             BLUE: 18.8 * s, PUP: 12.2 * s, SHINE_D: 7.7 * s, SHINE_R: 5 * s };
+  }
+
+  function riInside(r, E) {
+    let c = mix565(RI_CREAM, 0x0000, cover(E.IRIS - r));
+    c = mix565(c, RI_RINGC, cover(E.RING - r));
+    c = mix565(c, RI_BLUEC, cover(E.BLUE - r));
+    return mix565(c, 0x0000, cover(E.PUP - r));
+  }
+
+  function drawCurtain(fb, clock, P) {
+    const E = eyeDims(P);
+    const flow = clockPhase(clock, P.RI_FLOW_MS);
+    const invP = 1 / P.RI_PITCH, halfLine = P.RI_LINE * 0.5;
+    const sa = clockPhase(clock, P.RI_SPIN_MS) - 0.375;
+    const shX = E.SHINE_D * sinTurn(sa + 0.25), shY = E.SHINE_D * sinTurn(sa);
+    const rOut = vesicaR(E.W_OUT, E.H_OUT), cOut = rOut - E.H_OUT;
+    const rIn = vesicaR(E.W_IN, E.H_IN), cIn = rIn - E.H_IN;
+
+    let o = 0;
+    for (let py = 0; py < SCREEN_H; py++) {
+      const v = py + 0.5 - SCREEN_H * 0.5;
+      const ya = v + P.RI_OFFSET, yb = v - P.RI_OFFSET;
+      for (let px = 0; px < SCREEN_W; px++) {
+        const u = px + 0.5 - SCREEN_W * 0.5;
+
+        const rA = Math.sqrt(u * u + ya * ya), rB = Math.sqrt(u * u + yb * yb);
+        const fa = frac(rA * invP - flow), fB = frac(rB * invP - flow);
+        const da = (fa < 0.5 ? fa : 1 - fa) * P.RI_PITCH, db = (fB < 0.5 ? fB : 1 - fB) * P.RI_PITCH;
+        const dl = da < db ? da : db;
+        let col = mix565(RI_ORANGE, 0x0000, cover(halfLine - dl));
+
+        if (Math.abs(u) < E.W_OUT + 1 && Math.abs(v) < E.H_OUT + 1) {
+          const aOut = cover(-vesicaDist(u, v, rOut, cOut));
+          if (aOut) {
+            let c = 0x0000;
+            const aIn = cover(-vesicaDist(u, v, rIn, cIn));
+            if (aIn) {
+              const r = Math.sqrt(u * u + v * v);
+              c = riInside(r, E);
+              const sx = u - shX, sy = v - shY;
+              if (Math.abs(sx) < E.SHINE_R + 1 && Math.abs(sy) < E.SHINE_R + 1 && r < E.RING)
+                c = mix565(c, RI_CREAM, cover(E.SHINE_R - Math.sqrt(sx * sx + sy * sy)));
+              c = mix565(0x0000, c, aIn);
+            }
+            col = mix565(col, c, aOut);
+          }
+        }
+        fb[o++] = col;
+      }
+    }
+  }
+  // ---- core:end -----------------------------------------------
+
+  const DEFAULTS = {
+    RI_SC: 1.15, RI_SPIN_MS: 5600, RI_PITCH: 20, RI_LINE: 3.0, RI_OFFSET: 39, RI_FLOW_MS: 3000,
+  };
+  const CONTROLS = [
+    { key: "RI_SC", label: "Taille de l'œil", min: 0.4, max: 1.15, step: 0.01, fix: 2,
+      show: (v) => (100 * v).toFixed(0) + " px", hint: "Affiché : la largeur de l'œil. Sur le mur il faisait 115 px." },
+    { key: "RI_PITCH", label: "Écart des cercles", min: 10, max: 60, step: 0.5, fix: 1,
+      show: (v) => v.toFixed(1) + " px", hint: "D'un cercle au suivant. Plus grand, le treillis s'aère." },
+    { key: "RI_LINE", label: "Épaisseur des cercles", min: 1, max: 10, step: 0.5, fix: 1,
+      show: (v) => v.toFixed(1) + " px", hint: "Épaisseur du trait noir." },
+    { key: "RI_OFFSET", label: "Centres des cercles", min: 0, max: 100, step: 1, fix: 1,
+      show: (v) => "± " + v.toFixed(0) + " px", hint: "Distance des deux centres à l'œil, au-dessus et au-dessous. À zéro, une seule famille de cibles. Au-delà de 64 px, les centres sortent de l'écran." },
+    { key: "RI_FLOW_MS", label: "Vitesse des cercles", min: 1000, max: 15000, step: 100, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(1) + " s", hint: "Le temps qu'un cercle met à avancer d'un écart. Plus grand, plus lent." },
+    { key: "RI_SPIN_MS", label: "Tour du reflet", min: 2000, max: 20000, step: 100, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(1) + " s", hint: "Le reflet fait le tour de la pupille en tant de temps." },
+  ];
+  const COMMENT = {
+    RI_SC: "taille de l'œil : à 1 il fait 100 px de large",
+    RI_PITCH: "écart entre deux cercles",
+    RI_LINE: "épaisseur des cercles",
+    RI_OFFSET: "centres des deux familles : au-dessus et au-dessous de l'œil",
+    RI_FLOW_MS: "un cercle avance d'un écart en tant de ms",
+    RI_SPIN_MS: "un tour du reflet, ms",
+  };
+  const draw = drawCurtain;
+
+  // ============================================================
+  //  Page
+  // ============================================================
+  const P = { ...DEFAULTS };
+  const st = { t: 0, playing: true, speed: 1 };
+  const $ = (id) => document.getElementById(id);
+
+  const cv = $("screen"), ctx = cv.getContext("2d");
+  const img = ctx.createImageData(SCREEN_W, SCREEN_H);
+  const rgba = new Uint32Array(img.data.buffer);
+  const fb = new Uint16Array(SCREEN_W * SCREEN_H);
+
+  function paint() {
+    draw(fb, Math.floor(st.t * 1000), P);
+    for (let i = 0; i < fb.length; i++) {
+      const c = fb[i];
+      const r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+      rgba[i] = 0xFF000000 | (((b << 3) | (b >> 2)) << 16) | (((g << 2) | (g >> 4)) << 8) | ((r << 3) | (r >> 2));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  const literal = (c, v) => c.int ? String(Math.round(v)) : v.toFixed(c.fix) + "f";
+  function settings() {
+    const kw = Math.max(...CONTROLS.map((c) => c.key.length)) + 1;
+    const w = Math.max(...CONTROLS.map((c) => literal(c, P[c.key]).length));
+    $("settings").textContent = CONTROLS.map((c) =>
+      "#define " + c.key.padEnd(kw) + literal(c, P[c.key]).padEnd(w + 2) + "// " + COMMENT[c.key]).join("\n");
+  }
+
+  const panel = $("panel");
+  for (const c of CONTROLS) {
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML =
+      '<div class="label"><span>' + c.label + '</span><b id="v_' + c.key + '"></b></div>' +
+      '<input type="range" id="r_' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" aria-label="' + c.label + '">' +
+      '<div class="hint"><code>' + c.key + '</code> · ' + c.hint + '</div>';
+    panel.appendChild(f);
+    const r = f.querySelector("input");
+    r.addEventListener("input", () => { P[c.key] = +r.value; sync(); paint(); });
+  }
+  function sync() {
+    for (const c of CONTROLS) {
+      $("r_" + c.key).value = P[c.key];
+      $("v_" + c.key).textContent = c.show(P[c.key]);
+    }
+    settings();
+  }
+
+  // Le bloc part dans le presse-papiers avec le nom de l'animation en tête.
+  // Si le navigateur refuse, on sélectionne le bloc : il reste ⌘C.
+  let copyT = 0;
+  function copyLabel(msg) {
+    $("btnCopy").textContent = msg;
+    clearTimeout(copyT);
+    copyT = setTimeout(() => { $("btnCopy").textContent = "Copier les réglages"; }, 2500);
+  }
+  $("btnCopy").addEventListener("click", () => {
+    const text = "// " + document.title + "\n" + $("settings").textContent;
+    const selectBlock = () => {
+      const r = document.createRange();
+      r.selectNodeContents($("settings"));
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+      copyLabel("Sélectionné : ⌘C pour copier");
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => copyLabel("Copié"), selectBlock);
+    } catch (e) { selectBlock(); }
+  });
+  $("btnReset").addEventListener("click", () => { Object.assign(P, DEFAULTS); sync(); paint(); });
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => { st.t += 1 / 40; paint(); });
+  document.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
+    st.speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+
+  // ---- boucle ----------------------------------------------------
+  let prev = performance.now(), acc = 0, n = 0, msAcc = 0;
+  const FRAME = 1 / 40;
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      if (acc >= FRAME) {
+        const k = Math.min(Math.floor(acc / FRAME), 3);
+        acc -= k * FRAME;
+        st.t += k * FRAME * st.speed;
+        const t0 = performance.now();
+        paint();
+        msAcc += performance.now() - t0;
+        if (++n >= 20) {
+          $("fpsline").textContent = (msAcc / n).toFixed(1) + " ms par image dans le navigateur  ·  t = " + st.t.toFixed(1) + " s";
+          n = 0; msAcc = 0;
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  sync();
+  paint();
+  requestAnimationFrame(tick);
+})();
+</script>

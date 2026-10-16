@@ -1,0 +1,446 @@
+<title>RainbowEye</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Une colonne : l'écran du T-QT en tête, les curseurs dessous, puis les
+     #define à recopier. Même habit que SkullTurn/preview.html. */
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+    --accent: #E0321F;   /* le rouge de la sphère */
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #FF5A45;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #FF5A45;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding-block: clamp(1.25rem, 4vw, 3rem) 5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(2.5rem, 6vw, 4rem); }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+  .eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-family: var(--bitmap); font-weight: 400; font-size: clamp(1.7rem, 7vw, var(--step-3)); line-height: 1.1; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; max-width: 36rem; color: var(--ink-2); }
+
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+  .device { padding: 14px; background: var(--screen-bg); border: 1px solid var(--rule); line-height: 0; max-width: 100%; }
+  .device canvas { display: block; width: min(384px, 78vw); max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+  .caption { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); overflow: hidden; }
+  .field { display: flex; flex-direction: column; gap: 0.55rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--rule); margin-bottom: -1px; min-width: 0; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; }
+  .field .label b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: var(--step--1); padding: 0.4rem 0.3rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-right-width: 0; cursor: pointer; }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible, input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: var(--rule); margin: 0.7rem 0; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border: 0; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--accent); border: 0; border-radius: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 { font-family: var(--bitmap); font-weight: 400; font-size: var(--step-1); margin: 0; padding-bottom: 0.6rem; border-bottom: 1px solid var(--rule); letter-spacing: 0.02em; }
+  section p { margin: 0; max-width: 40rem; }
+
+  pre { font-family: var(--mono); font-size: var(--step--1); line-height: 1.7; border: 1px solid var(--rule); padding: 1rem 1.1rem; margin: 0; overflow-x: auto; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+  footer { font-size: var(--step--1); color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · Couleurs, œil gauche</div>
+    <h1>RainbowEye</h1>
+    <p>L'œil arc-en-ciel du thème Couleurs, seul sur l'écran du T-QT. Seize
+       amandes de couleur, chacune un peu plus tournée que la précédente,
+       pivotent autour du blanc de l'œil. Dans le blanc, la sphère rouge suit
+       le regard de l'œil bleu, et sa pupille glisse un peu dans le rouge.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device"><canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation RainbowEye"></canvas></div>
+    <div class="caption" id="fpsline">—</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu vise 40 images/s, comme le croquis.</div>
+    </div>
+    <div class="field">
+      <div class="label"><span>Vitesse de l'aperçu</span></div>
+      <div class="seg" role="group" aria-label="Vitesse de l'aperçu">
+        <button data-speed="1" aria-pressed="true">× 1</button>
+        <button data-speed="0.25" aria-pressed="false">× ¼</button>
+      </div>
+      <div class="hint">Le ralenti sert à regarder un geste de près. Il n'existe que dans l'aperçu.</div>
+    </div>
+    <!-- les curseurs sont ajoutés ici par le script, un par constante -->
+  </div>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis.
+       Copie-les et colle-les-moi : je les reporte dans le croquis.</p>
+    <pre id="settings"></pre>
+    <div class="seg" style="max-width: 28rem">
+      <button id="btnCopy">Copier les réglages</button>
+      <button id="btnReset">Revenir au croquis</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce qu'il faut savoir</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Point</th><th>Où ça en est</th></tr></thead>
+        <tbody>
+          <tr><td>D'où il vient</td><td>C'est l'œil gauche du thème Couleurs des Yeux, celui du T-Display. Le dessin, les seize couleurs, la torsion et la boucle du regard sont repris tels quels.</td></tr>
+          <tr><td>Le cadrage</td><td>Sur le T-Display, le blanc de l'œil occupait 130 px sur 170. Ici il en fait 74 sur 128, pour qu'on voie davantage de couches tourner autour. L'œil est à l'horizontale : l'inclinaison venait du T-Display posé de biais sur le mur.</td></tr>
+          <tr><td>Le regard</td><td>Il suit la boucle du gif bleu, comme sur le mur, ralentie de 4,27 à 5,05 s. BlueEye la joue en 5 s.</td></tr>
+          <tr><td>Vitesse</td><td>Estimée, pas mesurée : sur le mur, le T-Display tenait 23 images/s pour 54 400 pixels sur deux cœurs. Le T-QT n'en a que 16 384, sur un cœur, donc <b>25 à 35 images/s</b>. Seul un flash le confirmera.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Ces valeurs sont celles du croquis <code>RainbowEye/RainbowEye.ino</code>.
+    Les curseurs partent de là.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- core:start ---------------------------------------------
+  // Le même code que RainbowEye.ino, ligne pour ligne. P porte les #define.
+  const SCREEN_W = 128, SCREEN_H = 128;
+  const CO_LAYERS = 16;
+  const CO_RGB = [
+    [240, 221, 199], [ 99, 180, 130], [ 36, 127, 175], [ 96,  66, 137],
+    [114,  92, 148], [140,  90, 122], [172,  82, 100], [200,  82,  72],
+    [226,  88,  42], [243, 126,  22], [242, 152,  14], [246, 192,  32],
+    [236, 165,  45], [222, 112,  50], [228,  86,  66], [236,  52,  30]];
+  const CO_RED = 0xF123, CO_BLACK = 0x0841;
+
+  const sinLut = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) sinLut[i] = Math.sin(i * (2 * Math.PI / 1024));
+  const sinTurn = (turns) => sinLut[((turns * 1024) | 0) & 1023];
+  const clockPhase = (clock, periodMs) => (clock % periodMs) / periodMs;
+  const rgb565 = (r, g, b) => ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+  function mix565(a, b, t) {
+    if (t <= 0) return a;
+    if (t >= 256) return b;
+    const ra = a >> 11, ga = (a >> 5) & 63, ba = a & 31;
+    const rb = b >> 11, gb = (b >> 5) & 63, bb = b & 31;
+    return ((ra + (((rb - ra) * t) >> 8)) << 11) | ((ga + (((gb - ga) * t) >> 8)) << 5) | (ba + (((bb - ba) * t) >> 8));
+  }
+  const cover = (d) => d >= 0.5 ? 256 : (d <= -0.5 ? 0 : ((d + 0.5) * 256) | 0);
+  const smooth01 = (p) => { p = p < 0 ? 0 : (p > 1 ? 1 : p); return p * p * (3 - 2 * p); };
+  const lerpf = (a, b, p) => a + (b - a) * p;
+
+  const coCol = new Uint16Array(CO_LAYERS + 1);
+  for (let k = 0; k <= CO_LAYERS; k++) {
+    const c = CO_RGB[k < CO_LAYERS ? k : CO_LAYERS - 1];
+    coCol[k] = rgb565(c[0], c[1], c[2]);
+  }
+
+  // Le regard : la boucle du gif bleu, en px du gif
+  function coGaze(clock, P) {
+    const t = (clock % P.CO_LOOP_MS) * (4.267 / P.CO_LOOP_MS);
+    const ULx = -42, ULy = -49, URx = 66, URy = -49, DNx = 0, DNy = 45;
+    let gx, gy;
+    if (t < 0.10)      { gx = ULx; gy = ULy; }
+    else if (t < 0.60) { const q = 1 - (t - 0.10) / 0.50; gx = lerpf(ULx, URx, 1 - q * q); gy = ULy; }
+    else if (t < 1.08) { gx = URx; gy = URy; }
+    else if (t < 1.22) { const p = smooth01((t - 1.08) / 0.14); gx = lerpf(DNx + 14, DNx, p); gy = lerpf(DNy - 8, DNy, p); }
+    else if (t < 1.53) { gx = DNx; gy = DNy; }
+    else if (t < 1.80) { const p = smooth01((t - 1.53) / 0.27); gx = lerpf(DNx, 0, p); gy = lerpf(DNy, 0, p); }
+    else if (t < 3.40) { gx = 0; gy = 0; }
+    else if (t < 3.60) { const p = smooth01((t - 3.40) / 0.20); gx = lerpf(0, ULx, p); gy = lerpf(0, ULy, p); }
+    else               { gx = ULx; gy = ULy; }
+    return [gx, gy];
+  }
+
+  // Distance signée au bord d'une amande parabolique, négative dedans
+  function coLens(u, v, H, invW2) {
+    const q = 1 - u * u * invW2;
+    const f = (v < 0 ? -v : v) - H * q;
+    const gr = 2 * H * (u < 0 ? -u : u) * invW2;
+    return f / (gr > 1 ? gr : 1);
+  }
+
+  const lc = new Float32Array(CO_LAYERS), ls = new Float32Array(CO_LAYERS);
+  const lh = new Float32Array(CO_LAYERS), liw = new Float32Array(CO_LAYERS);
+
+  function drawRainbow(fb, clock, P) {
+    const br = clockPhase(clock, P.CO_BREATH_MS);
+    for (let k = 0; k < CO_LAYERS; k++) {
+      const a = P.CO_TWIST * k * (1 + P.CO_BREATH * sinTurn(br - 0.06 * k))
+              + P.CO_WAVE * sinTurn(br * 2 - 0.1 * k) * (k > 0 ? 1 : 0);
+      lc[k] = sinTurn(a + 0.25); ls[k] = sinTurn(a);
+      const w = 295 + 90 * k;
+      lh[k] = 162 + 52 * k + 1.5 * k * k;
+      liw[k] = 1 / (w * w);
+    }
+
+    const [gx, gy] = coGaze(clock, P);
+    const nx = gx * (1 / 66), ny = gy * (1 / 49);
+    const sx = nx * P.CO_LOOK_X, sy = ny * P.CO_LOOK_Y;
+    const px0 = sx + nx * 24, py0 = sy + ny * 8;
+
+    const pp = 1 / P.CO_SCALE, invPp = P.CO_SCALE;
+    const half = 0.5 * pp;
+    const redM = (P.CO_RED_R + pp) * (P.CO_RED_R + pp);
+
+    let kc = 0, o = 0;
+    for (let py = 0; py < SCREEN_H; py++) {
+      const y = (py + 0.5 - SCREEN_H * 0.5) * pp;
+      for (let px = 0; px < SCREEN_W; px++) {
+        const x = (px + 0.5 - SCREEN_W * 0.5) * pp;
+        let k = kc;
+        let d = coLens(x * lc[k] + y * ls[k], -x * ls[k] + y * lc[k], lh[k], liw[k]);
+        if (d < half) {
+          while (k > 0) {
+            const d2 = coLens(x * lc[k - 1] + y * ls[k - 1], -x * ls[k - 1] + y * lc[k - 1], lh[k - 1], liw[k - 1]);
+            if (d2 >= half) break;
+            k--; d = d2;
+          }
+        } else {
+          while (++k < CO_LAYERS) {
+            d = coLens(x * lc[k] + y * ls[k], -x * ls[k] + y * lc[k], lh[k], liw[k]);
+            if (d < half) break;
+          }
+        }
+        kc = k < CO_LAYERS ? k : CO_LAYERS - 1;
+
+        let col;
+        if (k === CO_LAYERS) col = coCol[CO_LAYERS - 1];
+        else {
+          let c = coCol[k];
+          if (k === 0) {
+            const dx = x - sx, dy = y - sy, r2 = dx * dx + dy * dy;
+            if (r2 < redM) {
+              const qx = x - px0, qy = y - py0;
+              const dp = Math.sqrt(qx * qx + qy * qy);
+              const inn = mix565(CO_RED, CO_BLACK, cover((P.CO_PUP_R - dp) * invPp));
+              c = mix565(c, inn, cover((P.CO_RED_R - Math.sqrt(r2)) * invPp));
+            }
+          }
+          col = mix565(coCol[k + 1], c, cover(-d * invPp));
+        }
+        fb[o++] = col;
+      }
+    }
+  }
+  // ---- core:end -----------------------------------------------
+
+  const DEFAULTS = {
+    CO_SCALE: 0.125, CO_TWIST: -0.029, CO_BREATH: 0.30, CO_BREATH_MS: 8000, CO_WAVE: 0.006,
+    CO_RED_R: 133, CO_PUP_R: 92, CO_LOOK_X: 109, CO_LOOK_Y: 31, CO_LOOP_MS: 5050,
+  };
+  const deg = (turns) => (turns * 360).toFixed(1) + "°";
+  const CONTROLS = [
+    { key: "CO_SCALE", label: "Taille", min: 0.06, max: 0.25, step: 0.005, fix: 3,
+      show: (v) => (590 * v).toFixed(0) + " px", hint: "Pixels d'écran par pixel de l'affiche. Affiché : la largeur du blanc de l'œil." },
+    { key: "CO_TWIST", label: "Torsion", min: -0.05, max: 0.05, step: 0.0005, fix: 4,
+      show: deg, hint: "Ce qu'une couche tourne de plus que la précédente. C'est le tourbillon. À zéro, les amandes sont toutes droites." },
+    { key: "CO_BREATH", label: "Respiration", min: 0, max: 0.8, step: 0.01, fix: 2,
+      show: (v) => "± " + (v * 100).toFixed(0) + " %", hint: "De combien la torsion enfle et retombe." },
+    { key: "CO_BREATH_MS", label: "Rythme", min: 2000, max: 30000, step: 500, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(1) + " s", hint: "Durée d'une respiration de la torsion." },
+    { key: "CO_WAVE", label: "Onde", min: 0, max: 0.03, step: 0.001, fix: 3,
+      show: deg, hint: "Le petit balancement qui part du centre vers l'extérieur, couche après couche." },
+    { key: "CO_RED_R", label: "Sphère", min: 80, max: 200, step: 1, fix: 1,
+      show: (v) => v.toFixed(0), hint: "Rayon de la sphère rouge, en px de l'affiche (le blanc fait 295 de demi-largeur)." },
+    { key: "CO_PUP_R", label: "Pupille", min: 30, max: 160, step: 1, fix: 1,
+      show: (v) => v.toFixed(0), hint: "Rayon de la pupille noire. Plus petite que la sphère, sinon le rouge disparaît." },
+    { key: "CO_LOOK_X", label: "Regard, côtés", min: 0, max: 200, step: 1, fix: 1,
+      show: (v) => v.toFixed(0), hint: "Jusqu'où la sphère va à gauche et à droite." },
+    { key: "CO_LOOK_Y", label: "Regard, haut/bas", min: 0, max: 80, step: 1, fix: 1,
+      show: (v) => v.toFixed(0), hint: "Jusqu'où elle monte et descend. L'amande est basse, d'où la petite valeur." },
+    { key: "CO_LOOP_MS", label: "Boucle du regard", min: 2000, max: 12000, step: 50, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(2) + " s", hint: "4,27 s est la vitesse du gif. Au-dessus, le regard prend son temps." },
+  ];
+  const COMMENT = {
+    CO_SCALE: "pixels d'écran par pixel de l'affiche",
+    CO_TWIST: "torsion d'une couche à la suivante, en tours (−10,4°)",
+    CO_BREATH: "la torsion respire de ± tant",
+    CO_BREATH_MS: "durée d'une respiration, ms",
+    CO_WAVE: "l'onde qui part du centre, en tours",
+    CO_RED_R: "sphère rouge, px de l'affiche",
+    CO_PUP_R: "pupille noire",
+    CO_LOOK_X: "course de la sphère quand l'œil regarde de côté",
+    CO_LOOK_Y: "et quand il regarde en haut ou en bas",
+    CO_LOOP_MS: "une boucle du regard (4267 dans le gif bleu), ms",
+  };
+  const draw = drawRainbow;
+
+  // ============================================================
+  //  Page
+  // ============================================================
+  const P = { ...DEFAULTS };
+  const st = { t: 0, playing: true, speed: 1 };
+  const $ = (id) => document.getElementById(id);
+
+  const cv = $("screen"), ctx = cv.getContext("2d");
+  const img = ctx.createImageData(SCREEN_W, SCREEN_H);
+  const rgba = new Uint32Array(img.data.buffer);
+  const fb = new Uint16Array(SCREEN_W * SCREEN_H);
+
+  function paint() {
+    draw(fb, Math.floor(st.t * 1000), P);
+    for (let i = 0; i < fb.length; i++) {
+      const c = fb[i];
+      const r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+      rgba[i] = 0xFF000000 | (((b << 3) | (b >> 2)) << 16) | (((g << 2) | (g >> 4)) << 8) | ((r << 3) | (r >> 2));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  const literal = (c, v) => c.int ? String(Math.round(v)) : v.toFixed(c.fix) + "f";
+  function settings() {
+    const kw = Math.max(...CONTROLS.map((c) => c.key.length)) + 1;
+    const w = Math.max(...CONTROLS.map((c) => literal(c, P[c.key]).length));
+    $("settings").textContent = CONTROLS.map((c) =>
+      "#define " + c.key.padEnd(kw) + literal(c, P[c.key]).padEnd(w + 2) + "// " + COMMENT[c.key]).join("\n");
+  }
+
+  const panel = $("panel");
+  for (const c of CONTROLS) {
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML =
+      '<div class="label"><span>' + c.label + '</span><b id="v_' + c.key + '"></b></div>' +
+      '<input type="range" id="r_' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" aria-label="' + c.label + '">' +
+      '<div class="hint"><code>' + c.key + '</code> · ' + c.hint + '</div>';
+    panel.appendChild(f);
+    const r = f.querySelector("input");
+    r.addEventListener("input", () => { P[c.key] = +r.value; sync(); paint(); });
+  }
+  function sync() {
+    for (const c of CONTROLS) {
+      $("r_" + c.key).value = P[c.key];
+      $("v_" + c.key).textContent = c.show(P[c.key]);
+    }
+    settings();
+  }
+
+  // Le bloc part dans le presse-papiers avec le nom de l'animation en tête.
+  // Si le navigateur refuse, on sélectionne le bloc : il reste ⌘C.
+  let copyT = 0;
+  function copyLabel(msg) {
+    $("btnCopy").textContent = msg;
+    clearTimeout(copyT);
+    copyT = setTimeout(() => { $("btnCopy").textContent = "Copier les réglages"; }, 2500);
+  }
+  $("btnCopy").addEventListener("click", () => {
+    const text = "// " + document.title + "\n" + $("settings").textContent;
+    const selectBlock = () => {
+      const r = document.createRange();
+      r.selectNodeContents($("settings"));
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+      copyLabel("Sélectionné : ⌘C pour copier");
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => copyLabel("Copié"), selectBlock);
+    } catch (e) { selectBlock(); }
+  });
+  $("btnReset").addEventListener("click", () => { Object.assign(P, DEFAULTS); sync(); paint(); });
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => { st.t += 1 / 40; paint(); });
+  document.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
+    st.speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+
+  // ---- boucle ----------------------------------------------------
+  let prev = performance.now(), acc = 0, n = 0, msAcc = 0;
+  const FRAME = 1 / 40;
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      if (acc >= FRAME) {
+        const k = Math.min(Math.floor(acc / FRAME), 3);
+        acc -= k * FRAME;
+        st.t += k * FRAME * st.speed;
+        const t0 = performance.now();
+        paint();
+        msAcc += performance.now() - t0;
+        if (++n >= 20) {
+          $("fpsline").textContent = (msAcc / n).toFixed(1) + " ms par image dans le navigateur  ·  t = " + st.t.toFixed(1) + " s";
+          n = 0; msAcc = 0;
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  sync();
+  paint();
+  requestAnimationFrame(tick);
+})();
+</script>
