@@ -9,10 +9,13 @@ Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
 chacune, **`Skull` en tête**. Bouton gauche = animation suivante, bouton
 droit = variante.
 
-> Deux autres attendent hors liste, sans être supprimées du fichier. Il suffit
+> Cinq autres attendent hors liste, sans être supprimées du fichier. Il suffit
 > d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
 >
 > - **`Waves`** (vue 2).
+> - **`Buddha`** (vue 3), **`Swarm`** (vue 4) et **`Tunnel`** (vue 9), le
+>   couloir rouge. Ils ont laissé leur place aux trois yeux des Yeux
+>   (vues 14, 15 et 16).
 > - **`Color text message`** (vue 12), la phrase multicolore qui tourne au
 >   milieu de l'écran. Le texte est dans `CT_TEXT` et dit toujours « BISOUS DE
 >   BILBAO! » — il est gardé là, prêt à ressortir.
@@ -131,7 +134,7 @@ attends 20 secondes.
 
 Tout est dans `CyberCycle/CyberCycle.ino` :
 
-- **Ordre de passage** : le tableau `viewOrder` (vers la ligne 76). On peut y
+- **Ordre de passage** : le tableau `viewOrder` (vers la ligne 133). On peut y
   retirer, répéter ou réordonner les vues.
 - **Durée** : `ANIM_MS`, 15 minutes par défaut.
 - **Variante par défaut** de chaque vue : dans `setup()`.
@@ -139,8 +142,8 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
 
-Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
-`CyberCycle/` (vues 7, 10, 11 et 13) :
+Sept d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7, 10, 11, 13, 14, 15 et 16) :
 
 - `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
   de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
@@ -150,9 +153,16 @@ Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
 - `HypnoEye/` — œil op-art dont la pupille regarde à droite et à gauche en
   resserrant les anneaux du côté visé.
 - `SkullTurn/` — un crâne en volume, éclairé, qui se balance sur son axe.
-  Dix-huit ellipsoïdes et un rayon par pixel, tramé en noir et blanc. C'est la
-  seule vue **sans variante** : mesuré sur la carte, il n'y avait qu'un mode de
-  rendu qui tienne la cadence, donc rien à basculer.
+  Dix-huit ellipsoïdes et un rayon par pixel, tramé en noir et blanc. Vue
+  **sans variante** : mesuré sur la carte, il n'y avait qu'un mode de rendu qui
+  tienne la cadence, donc rien à basculer.
+- `RainbowEye/`, `BlueEye/` et `CurtainEye/` — trois yeux repris des
+  **Yeux**, l'œuvre murale à deux écrans (`../Yeux`). Les deux premiers sont
+  les deux moitiés du thème Couleurs : l'œil arc-en-ciel dont les couches
+  tournent en tourbillon, et l'œil bleu qui rejoue son gif. Le troisième est
+  le thème Rideaux, l'œil d'affiche dans son treillis de cercles. Aucun n'a de
+  variante. Dans `CyberCycle/`, leurs constantes prennent les préfixes `RE_`,
+  `BE_` et `CE_`.
 
 ### Comment on fabrique une nouvelle animation
 
@@ -165,8 +175,9 @@ Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
    JavaScript, avec un écran 128×128 et **un curseur par constante réglable**.
    C'est ça le point important — l'animation se règle dans le navigateur, à
    l'œil, sans reflasher la carte une seule fois. La page affiche aussi les
-   valeurs courantes sous la forme des `#define` du croquis, pour qu'il n'y ait
-   rien à recopier à la main.
+   valeurs courantes sous la forme des `#define` du croquis, avec un bouton
+   **Copier les réglages** : on les colle tels quels dans la conversation, il
+   n'y a rien à recopier à la main.
 
    L'aperçu doit exécuter **le même code** : mêmes constantes, même dessin,
    mêmes formules. Un aperçu qui approxime ne sert à rien, puisqu'on choisit
@@ -182,10 +193,10 @@ Quatre d'entre eux ont leur propre README, et sont **aussi** repris dans
 
 `SkullTurn/preview.html` est l'exemple de référence.
 
-Une animation retirée du tour n'est pas forcément gardée : `Waves` et
-`Color text message` restent dans le fichier parce qu'on veut les revoir, mais
-un essai qu'on abandonne se supprime pour de bon — il reste dans l'historique
-Git, c'est suffisant.
+Une animation retirée du tour n'est pas forcément gardée : `Waves`,
+`Buddha`, `Swarm`, `Tunnel` et `Color text message` restent dans le fichier
+parce qu'on peut vouloir les revoir, mais un essai qu'on abandonne se supprime
+pour de bon — il reste dans l'historique Git, c'est suffisant.
 
 ---
 

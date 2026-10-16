@@ -1,6 +1,6 @@
 /*
- * Cyber Cycle - twelve cyberpunk animations on a 15-minute rotation,
- * and two more kept off the list until they are wanted
+ * Cyber Cycle - twelve animations on a 15-minute rotation, and five more
+ * kept off the list until they are wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
@@ -11,7 +11,9 @@
  *               not - OFF THE LIST for now, put 2 back in viewOrder to
  *               bring it round again
  *   3 Buddha    Buddha face spelled out by a cloud of outward-drifting dust
+ *               - OFF THE LIST, its place taken by the Yeux eyes (14-16)
  *   4 Swarm     dense flock painted as fading RGB wakes, wrapped sideways
+ *               - OFF THE LIST, likewise
  *   5 Mosaic    20x20 grid of flat colour tiles: two square wave-fronts
  *               beating against the tile grid, each read at a slightly
  *               different pitch by red, green and blue
@@ -24,6 +26,7 @@
  *   9 Tunnel    a square corridor flown forwards, off-axis: rings swell out
  *               past the viewer while new ones open at the vanishing point,
  *               red where they are alone and orange where they pile up
+ *               - OFF THE LIST, likewise
  *  10 World     wireframe globe with solid continents and an orbital ring,
  *               wrapped in a phrase that runs twice around the screen
  *  11 Hypno     op-art eye: rings on a black pupil that tighten on the side
@@ -35,12 +38,23 @@
  *  13 Skull     a lit skull in the round, rocking about its own axis:
  *               eighteen ellipsoids, nine added and nine carved out,
  *               one ray per pixel, dithered to pure black and white.
- *               First in the rotation, and the only view with no
- *               variant - there is nothing here worth switching
+ *               First in the rotation, with no variant - there is
+ *               nothing here worth switching
+ *  14 Rainbow   the rainbow eye of the Yeux wall piece: sixteen almonds
+ *               of colour turning about the white, a red ball that
+ *               follows the blue eye's gaze
+ *  15 Blue      the blue eye of the same piece, replaying its gif:
+ *               glance, blink, look down, squint, the almond following
+ *               the gaze
+ *  16 Curtain   the op-art poster eye of the same piece, still, its
+ *               highlight circling the pupil, in a lattice of black
+ *               circles growing out from above and below it
+ *               The three Yeux eyes have no variant either
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
- *                (Skull has none, so on that view it does nothing)
+ *                (Skull and the three Yeux eyes have none, so on those
+ *                views it does nothing)
  *
  * Everything shares one static framebuffer. The celestial scan is the only
  * view that also writes to the panel directly, for its text: the framebuffer
@@ -95,25 +109,28 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 14
+#define NUM_ANIMS 17
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
 //            10 World   11 Hypno  12 ColorText  13 Skull
-//  Four of these are spheres (1, 6, 7, 10), so the order below spaces them
-//  out rather than running them back to back.
+//            14 Rainbow 15 Blue   16 Curtain
+//  Four of these are spheres (1, 6, 7, 10) and five are eyes (8, 11, 14,
+//  15, 16), so the order below spaces both out: never two spheres or two
+//  eyes back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
-//  Off the list, and kept in the file: 2 Waves, 12 ColorText. Both come
-//  back by adding their id below - nothing else to restore.
+//  Off the list, and kept in the file: 2 Waves, 3 Buddha, 4 Swarm,
+//  9 Tunnel, 12 ColorText. Each comes back by adding its id below -
+//  nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 13, 7, 0, 8, 1, 3, 11, 4, 10, 5, 6, 9 };
+static int viewOrder[] = { 13, 14, 7, 8, 0, 16, 1, 11, 10, 15, 5, 6 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -2788,6 +2805,353 @@ static void animSkull(float t) {
 }
 
 // ======================================================================
+// 14-16 - THE EYES OF YEUX (ported from RainbowEye/, BlueEye/, CurtainEye/)
+//      Three eyes from the two-screen wall piece in ../Yeux, brought down
+//      to this one screen. 14 and 15 are the two halves of its "Couleurs"
+//      theme - the rainbow eye of the big screen and the blue eye of the
+//      small one - and 16 is its "Rideaux". None of them has a variant.
+//      They share the helpers below. Every edge is anti-aliased from its
+//      distance to the pixel centre, and every motion is read off a clock
+//      in milliseconds, so a frame depends on the time alone.
+// ======================================================================
+static float yxSinLut[1024];
+static inline float yxSinTurn(float turns) { return yxSinLut[(int)(turns * 1024.0f) & 1023]; }   // sin(2*pi*turns)
+// Phase 0..1 through a cycle of periodMs: exact, no drift
+static inline float yxPhase(uint32_t clock, uint32_t periodMs) { return (clock % periodMs) / (float)periodMs; }
+// floorf is a library call; this is enough for the values met here
+static inline float yxFrac(float x) { float i = (float)(int)x; if (i > x) i -= 1.0f; return x - i; }
+// Blend two 565 colours: t = 0 (a) .. 256 (b)
+static inline uint16_t yxMix(uint16_t a, uint16_t b, int t) {
+  if (t <= 0) return a;
+  if (t >= 256) return b;
+  int ra = a >> 11, ga = (a >> 5) & 63, ba = a & 31;
+  int rb = b >> 11, gb = (b >> 5) & 63, bb = b & 31;
+  return (uint16_t)(((ra + (((rb - ra) * t) >> 8)) << 11) | ((ga + (((gb - ga) * t) >> 8)) << 5) | (ba + (((bb - ba) * t) >> 8)));
+}
+// Coverage 0..256 of an edge, from its signed distance in pixels (positive inside)
+static inline int yxCover(float d) { return d >= 0.5f ? 256 : (d <= -0.5f ? 0 : (int)((d + 0.5f) * 256.0f)); }
+static inline float yxSmooth(float p) { p = p < 0 ? 0 : (p > 1 ? 1 : p); return p * p * (3 - 2 * p); }
+static inline float yxLerp(float a, float b, float p) { return a + (b - a) * p; }
+
+// The gaze of the blue gif, measured frame by frame off the video: where
+// its pupil is at `clock`, in gif pixels (500 x 500, origin at the centre).
+// Top left, a glide to top right, down, back to the centre, then a jump to
+// top left. 14 and 15 both look this way, as the two eyes did on the wall.
+static void yxGaze(uint32_t clock, uint32_t loopMs, float &gx, float &gy) {
+  float t = (clock % loopMs) * (4.267f / loopMs);   // seconds into the gif
+  const float ULx = -42, ULy = -49, URx = 66, URy = -49, DNx = 0, DNy = 45;
+  if (t < 0.10f)      { gx = ULx; gy = ULy; }
+  else if (t < 0.60f) { float q = 1 - (t - 0.10f) / 0.50f; gx = yxLerp(ULx, URx, 1 - q * q); gy = ULy; }
+  else if (t < 1.08f) { gx = URx; gy = URy; }
+  else if (t < 1.22f) { float p = yxSmooth((t - 1.08f) / 0.14f); gx = yxLerp(DNx + 14, DNx, p); gy = yxLerp(DNy - 8, DNy, p); }
+  else if (t < 1.53f) { gx = DNx; gy = DNy; }
+  else if (t < 1.80f) { float p = yxSmooth((t - 1.53f) / 0.27f); gx = yxLerp(DNx, 0, p); gy = yxLerp(DNy, 0, p); }
+  else if (t < 3.40f) { gx = 0; gy = 0; }
+  else if (t < 3.60f) { float p = yxSmooth((t - 3.40f) / 0.20f); gx = yxLerp(0, ULx, p); gy = yxLerp(0, ULy, p); }
+  else                { gx = ULx; gy = ULy; }
+}
+
+// ---- 14 - RAINBOW EYE ---------------------------------------------------
+//      Sixteen almonds round the white of the eye, green through blue,
+//      purples, pinks, oranges and yellows, each turned a little further
+//      than the one inside it: that offset is the poster's whirl. The
+//      layers swing gently - the twist breathes and a ripple runs outwards.
+//      Only the red ball and its black pupil move in the white; the pupil
+//      slides a little further, inside the red, towards where the eye looks.
+//      The almonds have parabolic edges, |v| < H (1 - (u/W)^2), so no root
+//      is needed to know whether a pixel is in. They nest, so each pixel
+//      starts from the layer of the one before - nearly always the same -
+//      and walks in or out: about two tests a pixel.
+//      Sizes are in pixels of the original poster, where the white is
+//      2 x 295 wide; RE_SCALE says how many screen pixels that makes.
+#define RE_SCALE      0.125f   // screen pixels per poster pixel
+#define RE_TWIST     -0.029f   // extra turn from one layer to the next (-10.4 deg)
+#define RE_BREATH     0.30f    // the twist breathes by +/- this much
+#define RE_BREATH_MS  8000     // one breath, ms
+#define RE_WAVE       0.006f   // the ripple running out from the centre, turns
+#define RE_RED_R      133.0f   // red ball, poster pixels
+#define RE_PUP_R       92.0f   // black pupil
+#define RE_LOOK_X     109.0f   // how far the ball travels sideways
+#define RE_LOOK_Y      31.0f   // and up or down
+#define RE_LOOP_MS    5050     // one loop of the gaze (4267 in the blue gif), ms
+#define RE_LAYERS     16
+static const uint8_t RE_RGB[RE_LAYERS][3] = {
+  { 240, 221, 199 }, {  99, 180, 130 }, {  36, 127, 175 }, {  96,  66, 137 },
+  { 114,  92, 148 }, { 140,  90, 122 }, { 172,  82, 100 }, { 200,  82,  72 },
+  { 226,  88,  42 }, { 243, 126,  22 }, { 242, 152,  14 }, { 246, 192,  32 },
+  { 236, 165,  45 }, { 222, 112,  50 }, { 228,  86,  66 }, { 236,  52,  30 } };
+static const uint16_t RE_RED = 0xF123, RE_BLACK = 0x0841;   // (242,37,24), (10,10,10)
+static uint16_t reCol[RE_LAYERS + 1];
+
+// Signed distance (approximate, poster pixels) to the edge of a parabolic
+// almond of half-height H; negative inside
+static inline float reLens(float u, float v, float H, float invW2) {
+  float q = 1.0f - u * u * invW2;                     // 1 at the centre, 0 at the corners
+  float f = (v < 0 ? -v : v) - H * q;
+  float gr = 2.0f * H * (u < 0 ? -u : u) * invW2;     // slope of the edge
+  return f / (gr > 1.0f ? gr : 1.0f);
+}
+
+static void animRainbowEye(float t) {
+  const uint32_t clock = (uint32_t)(t * 1000.0f);
+  // Each layer: its size, and its turn (a breathing twist, and a ripple
+  // that starts in the middle).
+  float lc[RE_LAYERS], ls[RE_LAYERS], lh[RE_LAYERS], liw[RE_LAYERS];
+  const float br = yxPhase(clock, RE_BREATH_MS);
+  for (int k = 0; k < RE_LAYERS; k++) {
+    float a = RE_TWIST * k * (1.0f + RE_BREATH * yxSinTurn(br - 0.06f * k))
+            + RE_WAVE * yxSinTurn(br * 2.0f - 0.1f * k) * (k > 0);
+    lc[k] = yxSinTurn(a + 0.25f); ls[k] = yxSinTurn(a);
+    float w = 295.0f + 90.0f * k;
+    lh[k] = 162.0f + 52.0f * k + 1.5f * k * k;
+    liw[k] = 1.0f / (w * w);
+  }
+
+  // The ball follows the gaze; the pupil slides a little further, into the red.
+  float gx, gy;
+  yxGaze(clock, RE_LOOP_MS, gx, gy);
+  const float nx = gx * (1.0f / 66.0f), ny = gy * (1.0f / 49.0f);
+  const float sx = nx * RE_LOOK_X, sy = ny * RE_LOOK_Y;
+  const float px0 = sx + nx * 24.0f, py0 = sy + ny * 8.0f;
+
+  const float pp = 1.0f / RE_SCALE, invPp = RE_SCALE;   // poster pixels per screen pixel
+  const float half = 0.5f * pp;
+
+  int kc = 0;
+  uint16_t *out = fb;
+  for (int py = 0; py < SCREEN_H; py++) {
+    const float y = ((float)py + 0.5f - SCREEN_H * 0.5f) * pp;
+    for (int px = 0; px < SCREEN_W; px++) {
+      const float x = ((float)px + 0.5f - SCREEN_W * 0.5f) * pp;
+      int k = kc;
+      float d = reLens(x * lc[k] + y * ls[k], -x * ls[k] + y * lc[k], lh[k], liw[k]);
+      if (d < half) {
+        while (k > 0) {
+          float d2 = reLens(x * lc[k - 1] + y * ls[k - 1], -x * ls[k - 1] + y * lc[k - 1], lh[k - 1], liw[k - 1]);
+          if (d2 >= half) break;
+          k--; d = d2;
+        }
+      } else {
+        while (++k < RE_LAYERS) {
+          d = reLens(x * lc[k] + y * ls[k], -x * ls[k] + y * lc[k], lh[k], liw[k]);
+          if (d < half) break;
+        }
+      }
+      kc = k < RE_LAYERS ? k : RE_LAYERS - 1;
+
+      uint16_t col;
+      if (k == RE_LAYERS) col = reCol[RE_LAYERS - 1];
+      else {
+        uint16_t c = reCol[k];
+        if (k == 0) {
+          // the white: the red ball and its pupil, edges smoothed
+          float dx = x - sx, dy = y - sy, r2 = dx * dx + dy * dy;
+          if (r2 < (RE_RED_R + pp) * (RE_RED_R + pp)) {
+            float qx = x - px0, qy = y - py0;
+            float dp = sqrtf(qx * qx + qy * qy);
+            uint16_t in = yxMix(RE_RED, RE_BLACK, yxCover((RE_PUP_R - dp) * invPp));
+            c = yxMix(c, in, yxCover((RE_RED_R - sqrtf(r2)) * invPp));
+          }
+        }
+        col = yxMix(reCol[k + 1], c, yxCover(-d * invPp));
+      }
+      *out++ = col;
+    }
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ---- 15 - BLUE EYE ------------------------------------------------------
+//      The icon of the blue gif, replaying its loop (4.27 s in the gif,
+//      slowed to 5 s here): gaze top left, glide to top right, a blink that
+//      flattens the eye, open again looking down, back to the centre, a
+//      squint of both lids, a jump to top left. The highlight follows the
+//      pupil.
+//      The almond follows the gaze at once: looking down, the lower lid
+//      opens a little and the upper one comes down; looking up, the other
+//      way. It stays an almond - the bottom never drops more than
+//      BE_DOWN_BOT. Sizes are in gif pixels; BE_SCALE turns them into
+//      screen pixels.
+#define BE_SCALE     0.32f    // screen pixels per gif pixel
+#define BE_W         197.0f   // almond: half-width
+#define BE_H         106.0f   // and half-height at rest
+#define BE_IRIS_R     95.0f   // blue iris
+#define BE_PUP_R      67.0f   // pupil
+#define BE_LOOP_MS   5000     // one loop (4267 in the gif), ms
+#define BE_DOWN_TOP  0.16f    // looking down, the upper lid comes down this much
+#define BE_DOWN_BOT  0.16f    // and the lower one opens this much
+#define BE_SQUINT    0.57f    // the squint closes the upper lid this much
+#define BE_SQUINT_BOT 0.30f   // and lifts the lower one this much
+static const uint16_t BE_BG = 0x2B59, BE_WHITE = 0xF7BE, BE_PUP = 0x0063;
+
+// Signed distance (approximate, gif pixels) to the edge of a parabolic
+// almond with separate upper and lower half-heights; negative inside
+static inline float beLens(float u, float v, float ht, float hb, float invW2) {
+  float q = 1.0f - u * u * invW2;
+  float H = v < 0 ? ht : hb;
+  float f = (v < 0 ? -v : v) - H * q;
+  float gr = 2.0f * H * (u < 0 ? -u : u) * invW2;
+  return f / (gr > 1.0f ? gr : 1.0f);
+}
+
+static void animBlueEye(float t) {
+  const uint32_t clock = (uint32_t)(t * 1000.0f);
+  float gx, gy;
+  yxGaze(clock, BE_LOOP_MS, gx, gy);
+  const float tg = (clock % BE_LOOP_MS) * (4.267f / BE_LOOP_MS);   // seconds into the gif
+  // The lids follow the gaze, with no lag.
+  float ny = gy * (1.0f / 45.0f); ny = ny > 1 ? 1 : (ny < -1.1f ? -1.1f : ny);
+  float dn = ny > 0 ? ny : 0, up = ny < 0 ? -ny : 0;
+  float top = 1.0f - BE_DOWN_TOP * dn + 0.06f * up;
+  float bot = 1.0f + BE_DOWN_BOT * dn - 0.06f * up;
+  // the squint, in the middle (2.73 -> 3.40 s), opening as soon as it looks up
+  float sq = 0;
+  if (tg >= 2.73f && tg < 2.93f) sq = yxSmooth((tg - 2.73f) / 0.20f);
+  else if (tg >= 2.93f && tg < 3.40f) sq = 1;
+  else if (tg >= 3.40f && tg < 3.50f) sq = 1 - yxSmooth((tg - 3.40f) / 0.10f);
+  top *= 1.0f - BE_SQUINT * sq; bot *= 1.0f - BE_SQUINT_BOT * sq;
+  // the blink (0.95 -> 1.22 s)
+  float o = 1;
+  if (tg >= 0.95f && tg < 1.05f) o = 1 - yxSmooth((tg - 0.95f) / 0.10f);
+  else if (tg >= 1.05f && tg < 1.12f) o = 0;
+  else if (tg >= 1.12f && tg < 1.22f) o = yxSmooth((tg - 1.12f) / 0.10f);
+  top *= o; bot *= o;
+
+  const float invW2 = 1.0f / (BE_W * BE_W);
+  const float ht = BE_H * top, hb = BE_H * bot;
+  const float pp = 1.0f / BE_SCALE, invPp = BE_SCALE;   // gif pixels per screen pixel
+  const float irisM = (BE_IRIS_R + pp) * (BE_IRIS_R + pp);
+  uint16_t *out = fb;
+  for (int py = 0; py < SCREEN_H; py++) {
+    const float y = ((float)py + 0.5f - SCREEN_H * 0.5f) * pp;
+    for (int px = 0; px < SCREEN_W; px++) {
+      const float x = ((float)px + 0.5f - SCREEN_W * 0.5f) * pp;
+      float d = (ht + hb > 0.5f) ? beLens(x, y, ht, hb, invW2) : 1e3f;
+      uint16_t col;
+      if (d > 0.5f * pp) col = BE_BG;
+      else {
+        // blue iris (the same blue as the ground), pupil, highlight
+        float dx = x - gx, dy = y - gy, r2 = dx * dx + dy * dy;
+        uint16_t c = BE_WHITE;
+        if (r2 < irisM) {
+          float r = sqrtf(r2);
+          c = yxMix(BE_WHITE, BE_BG, yxCover((BE_IRIS_R - r) * invPp));
+          c = yxMix(c, BE_PUP, yxCover((BE_PUP_R - r) * invPp));
+          float hx = dx + 51.0f, hy = dy + 37.5f;
+          if (hx * hx + hy * hy < 18.0f * 18.0f) c = yxMix(c, BE_WHITE, yxCover((16.0f - sqrtf(hx * hx + hy * hy)) * invPp));
+        }
+        col = yxMix(BE_BG, c, yxCover(-d * invPp));
+      }
+      *out++ = col;
+    }
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ---- 16 - CURTAIN EYE ---------------------------------------------------
+//      The op-art poster: an eye made of plain shapes, and two families of
+//      thick black concentric circles on orange paper, centred above and
+//      below it, growing without end and crossing into a lattice. On the
+//      wall the centres sat between the two screens; here they come back
+//      onto the eye, as on the poster.
+//      The eye is a pointed almond of two circular arcs ringed in black, a
+//      black iris disc touching the outline top and bottom, a cream ring,
+//      the blue iris, the pupil and a round highlight. It neither moves nor
+//      blinks: only the highlight circles the pupil, as if the light were
+//      going round. One eye unit is one pixel when CE_SC = 1.
+#define CE_SC       1.15f            // eye size: 100 px wide at 1
+#define CE_W_OUT   (50.0f * CE_SC)   // outer almond (the black outline): half-width, half-height
+#define CE_H_OUT   (28.5f * CE_SC)
+#define CE_W_IN    (40.0f * CE_SC)   // inner almond (the white of the eye)
+#define CE_H_IN    (22.0f * CE_SC)
+#define CE_IRIS    (27.0f * CE_SC)   // black iris disc
+#define CE_RING    (20.6f * CE_SC)   // cream ring
+#define CE_BLUE    (18.8f * CE_SC)   // blue iris
+#define CE_PUP     (12.2f * CE_SC)   // pupil
+#define CE_SHINE_D  (7.7f * CE_SC)   // highlight: distance from the pupil centre
+#define CE_SHINE_R  (5.0f * CE_SC)   // and radius
+#define CE_SPIN_MS  5600             // one turn of the highlight, ms
+#define CE_PITCH   20.0f             // circles: spacing, px
+#define CE_LINE     3.0f             // thickness, px
+#define CE_OFFSET  39.0f             // the two centres, above and below the eye, px
+#define CE_FLOW_MS 3000              // a circle moves out by one spacing in this many ms
+static const uint16_t CE_ORANGE = 0xF204, CE_CREAM = 0xFFF8, CE_RINGC = 0xFFFC, CE_BLUEC = 0x2BD5;
+
+// A pointed almond of two arcs (a vesica) of half-width W and half-height
+// H: both arcs have radius R = (W^2 + H^2) / 2H, their centres at
+// +/-c = +/-(R - H) on the vertical axis. Plain floats, no struct: the IDE
+// writes its prototypes above the sketch's structs, and the build breaks.
+static inline float ceVesicaR(float W, float H) { return (W * W + H * H) / (2.0f * H); }
+// Signed distance to its edge, negative inside
+static inline float ceVesicaDist(float u, float v, float R, float c) {
+  float d1 = sqrtf(u * u + (v - c) * (v - c)), d2 = sqrtf(u * u + (v + c) * (v + c));
+  return (d1 > d2 ? d1 : d2) - R;
+}
+// Inside the eye at distance r from its centre, cream to pupil, every edge smoothed
+static inline uint16_t ceInside(float r) {
+  uint16_t c = yxMix(CE_CREAM, 0x0000, yxCover(CE_IRIS - r));
+  c = yxMix(c, CE_RINGC, yxCover(CE_RING - r));
+  c = yxMix(c, CE_BLUEC, yxCover(CE_BLUE - r));
+  return yxMix(c, 0x0000, yxCover(CE_PUP - r));
+}
+
+static void animCurtainEye(float t) {
+  const uint32_t clock = (uint32_t)(t * 1000.0f);
+  const float flow = yxPhase(clock, CE_FLOW_MS);
+  const float invP = 1.0f / CE_PITCH, halfLine = CE_LINE * 0.5f;
+  // the highlight goes round the pupil, starting top left
+  const float sa = yxPhase(clock, CE_SPIN_MS) - 0.375f;
+  const float shX = CE_SHINE_D * yxSinTurn(sa + 0.25f), shY = CE_SHINE_D * yxSinTurn(sa);
+  const float rOut = ceVesicaR(CE_W_OUT, CE_H_OUT), cOut = rOut - CE_H_OUT;
+  const float rIn = ceVesicaR(CE_W_IN, CE_H_IN), cIn = rIn - CE_H_IN;
+
+  uint16_t *out = fb;
+  for (int py = 0; py < SCREEN_H; py++) {
+    const float v = (float)py + 0.5f - SCREEN_H * 0.5f;
+    const float ya = v + CE_OFFSET, yb = v - CE_OFFSET;   // centres above and below
+    for (int px = 0; px < SCREEN_W; px++) {
+      const float u = (float)px + 0.5f - SCREEN_W * 0.5f;
+
+      // the ground: two families of circles, edges smoothed
+      float rA = sqrtf(u * u + ya * ya), rB = sqrtf(u * u + yb * yb);
+      float fa = yxFrac(rA * invP - flow), fB = yxFrac(rB * invP - flow);
+      float da = (fa < 0.5f ? fa : 1.0f - fa) * CE_PITCH, db = (fB < 0.5f ? fB : 1.0f - fB) * CE_PITCH;
+      float dl = da < db ? da : db;                       // distance to the nearest stroke
+      uint16_t col = yxMix(CE_ORANGE, 0x0000, yxCover(halfLine - dl));
+
+      // the eye, when close enough
+      if (fabsf(u) < CE_W_OUT + 1.0f && fabsf(v) < CE_H_OUT + 1.0f) {
+        int aOut = yxCover(-ceVesicaDist(u, v, rOut, cOut));
+        if (aOut) {
+          uint16_t c = 0x0000;
+          int aIn = yxCover(-ceVesicaDist(u, v, rIn, cIn));
+          if (aIn) {
+            float r = sqrtf(u * u + v * v);
+            c = ceInside(r);
+            float sx = u - shX, sy = v - shY;
+            if (fabsf(sx) < CE_SHINE_R + 1.0f && fabsf(sy) < CE_SHINE_R + 1.0f && r < CE_RING)
+              c = yxMix(c, CE_CREAM, yxCover(CE_SHINE_R - sqrtf(sx * sx + sy * sy)));
+            c = yxMix(0x0000, c, aIn);
+          }
+          col = yxMix(col, c, aOut);
+        }
+      }
+      *out++ = col;
+    }
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// The sine table and the rainbow's colours, once at boot
+static void initYeux() {
+  for (int i = 0; i < 1024; i++) yxSinLut[i] = sinf(i * (2 * PI / 1024));
+  for (int k = 0; k <= RE_LAYERS; k++) {
+    const uint8_t *c = RE_RGB[k < RE_LAYERS ? k : RE_LAYERS - 1];
+    reCol[k] = ((c[0] & 0xF8) << 8) | ((c[1] & 0xFC) << 3) | (c[2] >> 3);
+  }
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -2826,6 +3190,7 @@ void setup() {
   tft.setAttribute(CP437_SWITCH, 1);   // so 0xF8 gives the degree ring
 
   randomSeed(analogRead(4) * millis());
+  initYeux();
 
   // Default variant per view (untouched-by-buttons look)
   variant[0] = 1;   // Morph : widest chroma bleed (the one that smears most)
@@ -2875,6 +3240,9 @@ void loop() {
     case 11: animHypnoEye(animTime); break;
     case 12: animColorText(animTime); break;
     case 13: animSkull(animTime);    break;
+    case 14: animRainbowEye(animTime); break;
+    case 15: animBlueEye(animTime);  break;
+    case 16: animCurtainEye(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {
