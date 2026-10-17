@@ -120,6 +120,16 @@ Pour savoir quand les cartes ont réellement pris cette version, voir §9.
 - **15 secondes plus tard**, il se connecte au Wi-Fi et lit
   `firmware/ota-manifest.txt`. Si la version publiée est plus récente que la
   sienne, il la télécharge et redémarre dessus. Sinon il coupe le Wi-Fi.
+- **Pendant le téléchargement**, l'écran affiche « update.. » au-dessus d'une
+  barre qui se remplit en rouge : l'écran des Yeux, où c'est écrit « OTA ». Avant, la dernière
+  image de l'animation restait figée pendant toute la minute du téléchargement.
+  Si le téléchargement échoue, l'animation reprend par-dessus et la carte garde
+  sa version.
+
+  > Cet écran est dessiné par la version **qui télécharge**, pas par celle qui
+  > arrive. Une carte ne l'affiche donc qu'à partir de la mise à jour suivant
+  > celle qui l'a installé (v1.0.18) : la v1.0.18 elle-même arrive encore sans
+  > barre.
 - Ensuite il refait ce contrôle **toutes les 24 heures**.
 - Pas de Wi-Fi, ou GitHub injoignable : il continue simplement avec la version
   déjà installée.

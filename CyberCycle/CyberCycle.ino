@@ -303,6 +303,36 @@ static void fleetCheckIn() {
   prefs.end();
 }
 
+// The update screen, the one the Yeux wall piece shows, worded for people
+// rather than engineers: "update.." over a bar that fills in red as the
+// firmware comes down. Nothing moves on the
+// panel during a download otherwise - the animations are stopped, since
+// httpUpdate blocks - so without it the last frame just froze for a minute.
+// The frame and the label are drawn once; after that only the newly filled
+// strip of the bar, and only when the percentage changes, so redrawing never
+// slows the download. Note the screen belongs to the firmware doing the
+// downloading: a board shows it from the update AFTER the one that brought it.
+#define OTA_BAR_RED 0xE206           // the red of the wall piece's bar
+static int otaShownPercent = -1;     // -1: the screen is not up
+
+static void otaDrawProgress(int percent) {
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+  if (otaShownPercent < 0) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("update..", 64, 50, 2);
+    tft.setTextDatum(TL_DATUM);
+    tft.drawRect(14, 70, 100, 10, TFT_WHITE);
+    otaShownPercent = 0;
+  }
+  if (percent <= otaShownPercent) return;
+  int x0 = otaShownPercent * 96 / 100, x1 = percent * 96 / 100;
+  if (x1 > x0) tft.fillRect(16 + x0, 72, x1 - x0, 6, OTA_BAR_RED);
+  otaShownPercent = percent;
+}
+
 static void otaCheckForUpdate() {
   // Built here rather than kept around: it holds a copy of every SSID and
   // password, and between two checks that is memory the animations can use.
@@ -363,9 +393,16 @@ static void otaCheckForUpdate() {
   WiFiClientSecure firmwareClient;
   firmwareClient.setCACert(OTA_ROOT_CA);
   httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  httpUpdate.onStart([]() { otaDrawProgress(0); });
+  httpUpdate.onProgress([](int done, int total) {
+    otaDrawProgress(total > 0 ? (int)((int64_t)done * 100 / total) : 0);
+  });
   t_httpUpdate_return result = httpUpdate.update(firmwareClient, url, FW_VERSION);
   if (result == HTTP_UPDATE_FAILED)
     Serial.printf("OTA failed (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+  // Still here, so the update did not go through: the board keeps the version
+  // it has, and the next frame of the animation paints over the bar.
+  otaShownPercent = -1;
   WiFi.disconnect(); WiFi.mode(WIFI_OFF);
 }
 
