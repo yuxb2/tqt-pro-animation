@@ -2837,11 +2837,17 @@ static inline float yxLerp(float a, float b, float p) { return a + (b - a) * p; 
 // its pupil is at `clock`, in gif pixels (500 x 500, origin at the centre).
 // Top left, a glide to top right, down, back to the centre, then a jump to
 // top left. 14 and 15 both look this way, as the two eyes did on the wall.
-static void yxGaze(uint32_t clock, uint32_t loopMs, float &gx, float &gy) {
+// The drop from top right to the bottom is a jump in the gif, at 1.08 s,
+// hidden because the blink holds the lids shut just then. 15 keeps it. 14
+// has no lid to hide it - its ball used to teleport (up to v1.0.16) - so
+// with `glide` the ball slides down over the span of the blink instead,
+// landing when the gif's gaze does.
+static void yxGaze(uint32_t clock, uint32_t loopMs, bool glide, float &gx, float &gy) {
   float t = (clock % loopMs) * (4.267f / loopMs);   // seconds into the gif
   const float ULx = -42, ULy = -49, URx = 66, URy = -49, DNx = 0, DNy = 45;
   if (t < 0.10f)      { gx = ULx; gy = ULy; }
   else if (t < 0.60f) { float q = 1 - (t - 0.10f) / 0.50f; gx = yxLerp(ULx, URx, 1 - q * q); gy = ULy; }
+  else if (glide && t >= 0.95f && t < 1.22f) { float p = yxSmooth((t - 0.95f) / 0.27f); gx = yxLerp(URx, DNx, p); gy = yxLerp(URy, DNy, p); }
   else if (t < 1.08f) { gx = URx; gy = URy; }
   else if (t < 1.22f) { float p = yxSmooth((t - 1.08f) / 0.14f); gx = yxLerp(DNx + 14, DNx, p); gy = yxLerp(DNy - 8, DNy, p); }
   else if (t < 1.53f) { gx = DNx; gy = DNy; }
@@ -2909,7 +2915,7 @@ static void animRainbowEye(float t) {
 
   // The ball follows the gaze; the pupil slides a little further, into the red.
   float gx, gy;
-  yxGaze(clock, RE_LOOP_MS, gx, gy);
+  yxGaze(clock, RE_LOOP_MS, true, gx, gy);
   const float nx = gx * (1.0f / 66.0f), ny = gy * (1.0f / 49.0f);
   const float sx = nx * RE_LOOK_X, sy = ny * RE_LOOK_Y;
   const float px0 = sx + nx * 24.0f, py0 = sy + ny * 8.0f;
@@ -2997,7 +3003,7 @@ static inline float beLens(float u, float v, float ht, float hb, float invW2) {
 static void animBlueEye(float t) {
   const uint32_t clock = (uint32_t)(t * 1000.0f);
   float gx, gy;
-  yxGaze(clock, BE_LOOP_MS, gx, gy);
+  yxGaze(clock, BE_LOOP_MS, false, gx, gy);
   const float tg = (clock % BE_LOOP_MS) * (4.267f / BE_LOOP_MS);   // seconds into the gif
   // The lids follow the gaze, with no lag.
   float ny = gy * (1.0f / 45.0f); ny = ny > 1 ? 1 : (ny < -1.1f ? -1.1f : ny);

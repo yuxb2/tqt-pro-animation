@@ -100,15 +100,21 @@ static inline float lerpf(float a, float b, float p) { return a + (b - a) * p; }
 //  Le regard : la boucle du gif bleu
 // ============================================================
 // Position de la pupille à l'instant clock, en px du gif (500 × 500, centre
-// au milieu) : en haut à gauche, glisse en haut à droite, en bas, retour au
-// centre, puis saut en haut à gauche.
+// au milieu) : en haut à gauche, glisse en haut à droite, descend en bas,
+// retour au centre, puis saut en haut à gauche.
+//
+// Une différence avec le gif : là-bas, le regard passe d'en haut à droite à
+// en bas d'un coup, à 1,08 s, pendant que le clignement tient l'œil fermé.
+// Cet œil-ci n'a pas de paupière pour cacher le saut — la sphère se
+// téléportait. Elle glisse donc vers le bas pendant le temps du clignement
+// (0,95 -> 1,22 s), et arrive en bas en même temps que le regard du gif.
 static void coGaze(uint32_t clock, float &gx, float &gy) {
   float t = (clock % CO_LOOP_MS) * (4.267f / CO_LOOP_MS);   // secondes du gif
   const float ULx = -42, ULy = -49, URx = 66, URy = -49, DNx = 0, DNy = 45;
   if (t < 0.10f)      { gx = ULx; gy = ULy; }
   else if (t < 0.60f) { float q = 1 - (t - 0.10f) / 0.50f; gx = lerpf(ULx, URx, 1 - q * q); gy = ULy; }
-  else if (t < 1.08f) { gx = URx; gy = URy; }
-  else if (t < 1.22f) { float p = smooth01((t - 1.08f) / 0.14f); gx = lerpf(DNx + 14, DNx, p); gy = lerpf(DNy - 8, DNy, p); }
+  else if (t < 0.95f) { gx = URx; gy = URy; }
+  else if (t < 1.22f) { float p = smooth01((t - 0.95f) / 0.27f); gx = lerpf(URx, DNx, p); gy = lerpf(URy, DNy, p); }
   else if (t < 1.53f) { gx = DNx; gy = DNy; }
   else if (t < 1.80f) { float p = smooth01((t - 1.53f) / 0.27f); gx = lerpf(DNx, 0, p); gy = lerpf(DNy, 0, p); }
   else if (t < 3.40f) { gx = 0; gy = 0; }

@@ -146,7 +146,7 @@
         <tbody>
           <tr><td>D'où il vient</td><td>C'est l'œil gauche du thème Couleurs des Yeux, celui du T-Display. Le dessin, les seize couleurs, la torsion et la boucle du regard sont repris tels quels.</td></tr>
           <tr><td>Le cadrage</td><td>Sur le T-Display, le blanc de l'œil occupait 130 px sur 170. Ici il en fait 74 sur 128, pour qu'on voie davantage de couches tourner autour. L'œil est à l'horizontale : l'inclinaison venait du T-Display posé de biais sur le mur.</td></tr>
-          <tr><td>Le regard</td><td>Il suit la boucle du gif bleu, comme sur le mur, ralentie de 4,27 à 5,05 s. BlueEye la joue en 5 s.</td></tr>
+          <tr><td>Le regard</td><td>Il suit la boucle du gif bleu, comme sur le mur, ralentie de 4,27 à 5,05 s. BlueEye la joue en 5 s. Une différence : dans le gif, le regard saute d'en haut à droite vers le bas pendant un clignement, qui le cache. Cet œil n'a pas de paupière, donc la sphère se téléportait (corrigé en v1.0.17) : elle glisse maintenant vers le bas pendant le temps du clignement.</td></tr>
           <tr><td>Vitesse</td><td>Estimée, pas mesurée : sur le mur, le T-Display tenait 23 images/s pour 54 400 pixels sur deux cœurs. Le T-QT n'en a que 16 384, sur un cœur, donc <b>25 à 35 images/s</b>. Seul un flash le confirmera.</td></tr>
         </tbody>
       </table>
@@ -196,15 +196,17 @@
     coCol[k] = rgb565(c[0], c[1], c[2]);
   }
 
-  // Le regard : la boucle du gif bleu, en px du gif
+  // Le regard : la boucle du gif bleu, en px du gif. Le saut d'en haut à
+  // droite vers le bas, que le gif cache dans un clignement, devient ici une
+  // glissade (0,95 -> 1,22 s du gif).
   function coGaze(clock, P) {
     const t = (clock % P.CO_LOOP_MS) * (4.267 / P.CO_LOOP_MS);
     const ULx = -42, ULy = -49, URx = 66, URy = -49, DNx = 0, DNy = 45;
     let gx, gy;
     if (t < 0.10)      { gx = ULx; gy = ULy; }
     else if (t < 0.60) { const q = 1 - (t - 0.10) / 0.50; gx = lerpf(ULx, URx, 1 - q * q); gy = ULy; }
-    else if (t < 1.08) { gx = URx; gy = URy; }
-    else if (t < 1.22) { const p = smooth01((t - 1.08) / 0.14); gx = lerpf(DNx + 14, DNx, p); gy = lerpf(DNy - 8, DNy, p); }
+    else if (t < 0.95) { gx = URx; gy = URy; }
+    else if (t < 1.22) { const p = smooth01((t - 0.95) / 0.27); gx = lerpf(URx, DNx, p); gy = lerpf(URy, DNy, p); }
     else if (t < 1.53) { gx = DNx; gy = DNy; }
     else if (t < 1.80) { const p = smooth01((t - 1.53) / 0.27); gx = lerpf(DNx, 0, p); gy = lerpf(DNy, 0, p); }
     else if (t < 3.40) { gx = 0; gy = 0; }

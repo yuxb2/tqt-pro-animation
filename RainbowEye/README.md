@@ -25,6 +25,15 @@ Le regard est celui de l'œil bleu (`BlueEye/`, vue 15) : la boucle relevée
 image par image sur le gif. Sur le mur, les deux yeux regardaient ainsi
 ensemble. Le gif la joue en 4,27 s ; ici elle est ralentie à 5,05 s.
 
+**Une différence, voulue.** Dans le gif, le regard passe d'en haut à droite à
+en bas d'un coup, à 1,08 s : c'est invisible, parce que l'œil bleu est fermé
+par son clignement à ce moment-là. L'œil arc-en-ciel, lui, n'a pas de
+paupière. La v1.0.16 reprenait la boucle telle quelle, et la sphère se
+téléportait, ce qui se voyait bien sur la carte. Depuis la v1.0.17, elle glisse
+vers le bas pendant le temps du clignement (0,95 → 1,22 s du gif) et arrive en
+bas en même temps que le regard du gif. L'œil bleu garde le saut, caché comme
+dans le gif.
+
 ## 2. Comment c'est construit
 
 Chaque couche est une **amande à bords paraboliques**,
