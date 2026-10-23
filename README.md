@@ -9,13 +9,15 @@ Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
 chacune, **`Skull` en tête**. Bouton gauche = animation suivante, bouton
 droit = variante.
 
-> Cinq autres attendent hors liste, sans être supprimées du fichier. Il suffit
+> Six autres attendent hors liste, sans être supprimées du fichier. Il suffit
 > d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
 >
 > - **`Waves`** (vue 2).
 > - **`Buddha`** (vue 3), **`Swarm`** (vue 4) et **`Tunnel`** (vue 9), le
 >   couloir rouge. Ils ont laissé leur place aux trois yeux des Yeux
 >   (vues 14, 15 et 16).
+> - **`SphereColor`** (vue 6), la sphère de points traversée de vagues de
+>   couleur. Elle a laissé sa place au cube d'Escher (vue 17).
 > - **`Color text message`** (vue 12), la phrase multicolore qui tourne au
 >   milieu de l'écran. Le texte est dans `CT_TEXT` et dit toujours « BISOUS DE
 >   BILBAO! » — il est gardé là, prêt à ressortir.
@@ -152,8 +154,8 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
 
-Sept d'entre eux ont leur propre README, et sont **aussi** repris dans
-`CyberCycle/` (vues 7, 10, 11, 13, 14, 15 et 16) :
+Huit d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7, 10, 11, 13, 14, 15, 16 et 17) :
 
 - `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
   de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
@@ -173,6 +175,11 @@ Sept d'entre eux ont leur propre README, et sont **aussi** repris dans
   le thème Rideaux, l'œil d'affiche dans son treillis de cercles. Aucun n'a de
   variante. Dans `CyberCycle/`, leurs constantes prennent les préfixes `RE_`,
   `BE_` et `CE_`.
+- `EscherCube/` — le cube impossible d'Escher, en métal bleu-violet, qui
+  pivote en allers-retours et flotte comme un cristal de l'End. Sous son
+  centre, la barre du fond passe devant celle de devant. Il ne fait jamais de
+  tour complet : de face ou pile sur l'arête, l'illusion se défait. Vue
+  **sans variante**, constantes en `CU_`.
 
 ### Comment on fabrique une nouvelle animation
 

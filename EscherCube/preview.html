@@ -1,0 +1,520 @@
+<title>EscherCube</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Une colonne : l'écran du T-QT en tête, les curseurs dessous, puis les
+     #define à recopier. Même habit que SkullTurn/preview.html. */
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+    --accent: #3E6E9E;   /* le bleu acier du métal */
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #7FA9D6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #7FA9D6;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding-block: clamp(1.25rem, 4vw, 3rem) 5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(2.5rem, 6vw, 4rem); }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+  .eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-family: var(--bitmap); font-weight: 400; font-size: clamp(1.7rem, 7vw, var(--step-3)); line-height: 1.1; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; max-width: 36rem; color: var(--ink-2); }
+
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+  .device { padding: 14px; background: var(--screen-bg); border: 1px solid var(--rule); line-height: 0; max-width: 100%; }
+  .device canvas { display: block; width: min(384px, 78vw); max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+  .caption { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); overflow: hidden; }
+  .field { display: flex; flex-direction: column; gap: 0.55rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--rule); margin-bottom: -1px; min-width: 0; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; }
+  .field .label b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: var(--step--1); padding: 0.4rem 0.3rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-right-width: 0; cursor: pointer; }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible, input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: var(--rule); margin: 0.7rem 0; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border: 0; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--accent); border: 0; border-radius: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 { font-family: var(--bitmap); font-weight: 400; font-size: var(--step-1); margin: 0; padding-bottom: 0.6rem; border-bottom: 1px solid var(--rule); letter-spacing: 0.02em; }
+  section p { margin: 0; max-width: 40rem; }
+
+  pre { font-family: var(--mono); font-size: var(--step--1); line-height: 1.7; border: 1px solid var(--rule); padding: 1rem 1.1rem; margin: 0; overflow-x: auto; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+  footer { font-size: var(--step--1); color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · Structures impossibles</div>
+    <h1>EscherCube</h1>
+    <p>Le cube impossible d'Escher, en métal, qui pivote en allers-retours et
+       flotte de haut en bas comme un cristal de l'End. Le haut du cube est vu d'en
+       haut, le bas est vu d'en bas : au croisement du bas, la barre du fond
+       passe devant celle de devant.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device"><canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation EscherCube"></canvas></div>
+    <div class="caption" id="fpsline">—</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu vise 40 images/s, comme le croquis.</div>
+    </div>
+    <div class="field">
+      <div class="label"><span>Vitesse de l'aperçu</span></div>
+      <div class="seg" role="group" aria-label="Vitesse de l'aperçu">
+        <button data-speed="1" aria-pressed="true">× 1</button>
+        <button data-speed="0.25" aria-pressed="false">× ¼</button>
+      </div>
+      <div class="hint">Le ralenti sert à regarder un croisement de près. Il n'existe que dans l'aperçu.</div>
+    </div>
+    <!-- les curseurs sont ajoutés ici par le script, un par constante -->
+  </div>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis.
+       Copie-les et colle-les-moi : je les reporte dans le croquis.</p>
+    <pre id="settings"></pre>
+    <div class="seg" style="max-width: 28rem">
+      <button id="btnCopy">Copier les réglages</button>
+      <button id="btnReset">Revenir au croquis</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce qu'il faut savoir</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Point</th><th>Où ça en est</th></tr></thead>
+        <tbody>
+          <tr><td>L'illusion</td><td>Deux barres qui ne partagent pas de coin et se croisent à l'écran : au-dessus du centre, la plus proche passe devant ; en dessous, c'est l'inverse. Les barres qui se touchent par un coin gardent leur vraie profondeur.</td></tr>
+          <tr><td>Les allers-retours</td><td>De face, il n'y a plus de croisement et le cube redevient ordinaire : l'illusion se défait tous les quarts de tour. Vu pile sur l'arête (45°), le coin du fond se cache derrière la verticale de devant et l'illusion se brouille aussi. Le cube va donc et vient entre ces deux vues, autour de 67,5°, sans passer ni de face ni sur l'arête. Il faut pour ça que l'amplitude reste sous 45°. Mets « Impossible » à 0 pour comparer avec le vrai cube.</td></tr>
+          <tr><td>Le lissage</td><td>Une couleur par coin de pixel, et chaque pixel fait la moyenne de ses quatre coins. Les bords sont doux pour 2 % de calcul en plus.</td></tr>
+          <tr><td>Vitesse</td><td>Estimée, pas mesurée : douze tests de boîte au plus par coin, la plupart écartés par le cadre de chaque barre. Autour de <b>30 à 40 images/s</b>. Seul un flash le confirmera.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Ces valeurs sont celles du croquis <code>EscherCube/EscherCube.ino</code>.
+    Les curseurs partent de là.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- core:start ---------------------------------------------
+  // Le même code que EscherCube.ino, ligne pour ligne. P porte les #define.
+  const SCREEN_W = 128, SCREEN_H = 128, NS = SCREEN_W + 1;
+  const CU_CY = 3.0, CU_CX = 0.5, CU_GROUND = -56.0;
+  const CU_LIGHT = [-0.45, 0.72, 0.53];
+  const CU_AMB = 0.16, CU_Z0 = 3.0;
+
+  const sinLut = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) sinLut[i] = Math.sin(i * (2 * Math.PI / 1024));
+  const sinTurn = (turns) => sinLut[((turns * 1024) | 0) & 1023];
+  const clockPhase = (clock, periodMs) => (clock % periodMs) / periodMs;
+  const clampf = (v, a, b) => v < a ? a : (v > b ? b : v);
+  const rgb888 = (r, g, b) => ((clampf(r, 0, 255) | 0) << 16) | ((clampf(g, 0, 255) | 0) << 8) | (clampf(b, 0, 255) | 0);
+  function avg4(a, b, c, d) {
+    const r = ((a >> 16) + (b >> 16) + (c >> 16) + (d >> 16)) >> 2;
+    const g = (((a >> 8) & 255) + ((b >> 8) & 255) + ((c >> 8) & 255) + ((d >> 8) & 255)) >> 2;
+    const bl = ((a & 255) + (b & 255) + (c & 255) + (d & 255)) >> 2;
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (bl >> 3);
+  }
+
+  // Le cube : 8 sommets, 12 barres
+  const cuEdge = [], cuAdj = [], cuMin = [], cuMax = [];
+  function cuBuild(P) {
+    cuEdge.length = 0;
+    for (let v = 0; v < 8; v++)
+      for (let k = 0; k < 3; k++)
+        if (!(v & (1 << k))) cuEdge.push([v, v | (1 << k)]);
+    const hw = P.CU_BEAM * 0.5;
+    for (let e = 0; e < 12; e++) {
+      const [a, b] = cuEdge[e];
+      cuMin[e] = [0, 0, 0]; cuMax[e] = [0, 0, 0];
+      for (let k = 0; k < 3; k++) {
+        const pa = (a >> k) & 1 ? 1 : -1, pb = (b >> k) & 1 ? 1 : -1;
+        cuMin[e][k] = Math.min(pa, pb) - hw;
+        cuMax[e][k] = Math.max(pa, pb) + hw;
+      }
+    }
+    for (let i = 0; i < 12; i++) {
+      cuAdj[i] = [];
+      for (let j = 0; j < 12; j++)
+        cuAdj[i][j] = cuEdge[i][0] === cuEdge[j][0] || cuEdge[i][0] === cuEdge[j][1] ||
+                      cuEdge[i][1] === cuEdge[j][0] || cuEdge[i][1] === cuEdge[j][1];
+    }
+  }
+
+  // État d'une image
+  const cuR = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const cuO = [0, 0, 0], cuEx = [0, 0, 0], cuEy = [0, 0, 0], cuInv = [0, 0, 0], cuD = [0, 0, 0];
+  const cuFace = [[0, 0], [0, 0], [0, 0]];
+  const cuBx0 = new Float32Array(12), cuBx1 = new Float32Array(12), cuBy0 = new Float32Array(12), cuBy1 = new Float32Array(12);
+  const cuFlip = [...Array(12)].map(() => new Array(12).fill(false));
+  let cuCyb = 0, cuBobN = 0;
+  const cuTint = [0, 0, 0];
+
+  function cuSample(sx, sy, P) {
+    const ox = cuO[0] + sx * cuEx[0] + sy * cuEy[0];
+    const oy = cuO[1] + sx * cuEx[1] + sy * cuEy[1];
+    const oz = cuO[2] + sx * cuEx[2] + sy * cuEy[2];
+    let best = -1, bestAx = 0, bestT = 0;
+    for (let e = 0; e < 12; e++) {
+      if (sx < cuBx0[e] || sx > cuBx1[e] || sy < cuBy0[e] || sy > cuBy1[e]) continue;
+      const mn = cuMin[e], mx = cuMax[e];
+      let t1 = (mn[0] - ox) * cuInv[0], t2 = (mx[0] - ox) * cuInv[0];
+      let tn = t1 < t2 ? t1 : t2, tf = t1 < t2 ? t2 : t1;
+      let ax = 0;
+      t1 = (mn[1] - oy) * cuInv[1]; t2 = (mx[1] - oy) * cuInv[1];
+      let a = t1 < t2 ? t1 : t2, b = t1 < t2 ? t2 : t1;
+      if (a > tn) { tn = a; ax = 1; }
+      if (b < tf) tf = b;
+      t1 = (mn[2] - oz) * cuInv[2]; t2 = (mx[2] - oz) * cuInv[2];
+      a = t1 < t2 ? t1 : t2; b = t1 < t2 ? t2 : t1;
+      if (a > tn) { tn = a; ax = 2; }
+      if (b < tf) tf = b;
+      if (tn >= tf) continue;
+      let wins;
+      if (best < 0) wins = true;
+      else if (cuFlip[e][best]) wins = tn > bestT;
+      else wins = tn < bestT;
+      if (wins) { best = e; bestT = tn; bestAx = ax; }
+    }
+
+    if (best < 0) {
+      const j = (SCREEN_H * 0.5 - sy) * (1 / SCREEN_H);
+      let v = P.CU_BG * j * j;
+      const rx = P.CU_SIZE * 1.3 * (1 - 0.15 * cuBobN), ry = rx * 0.22;
+      const qx = (sx - CU_CX) / rx, qy = (sy - CU_GROUND) / ry;
+      const q = 1 - (qx * qx + qy * qy);
+      if (q > 0) v *= 1 - P.CU_SHADOW * (0.8 - 0.2 * cuBobN) * q * (2 - q);
+      return rgb888(v * cuTint[0], v * cuTint[1], v * cuTint[2]);
+    }
+
+    let v = cuFace[bestAx][cuD[bestAx] > 0 ? 0 : 1];
+    const rr = 1 / (P.CU_SIZE * 1.6);
+    const g = (-0.55 * (sx - CU_CX) + 0.83 * (sy - cuCyb)) * rr;
+    v *= 1 + P.CU_GRAD * g;
+    const dz = (bestT - CU_Z0) * (1 / 1.8);
+    v *= 1 - P.CU_FOG * (0.5 + 0.5 * dz);
+    const hl = clampf((v - 0.8) * 1.5, 0, 0.5);
+    return rgb888(v * cuTint[0] + (255 - cuTint[0]) * hl,
+                  v * cuTint[1] + (255 - cuTint[1]) * hl,
+                  v * cuTint[2] + (255 - cuTint[2]) * hl);
+  }
+
+  const rowA = new Uint32Array(NS), rowB = new Uint32Array(NS);
+
+  function drawCube(fb, clock, P) {
+    cuBuild(P);
+    const th = (P.CU_AIM + 0.5 * P.CU_SWEEP * Math.sin(clockPhase(clock, P.CU_SWING_MS) * 2 * Math.PI)) * (Math.PI / 180);
+    cuBobN = sinTurn(clockPhase(clock, P.CU_BOB_MS));
+    cuCyb = CU_CY + P.CU_BOB * cuBobN;
+    const ct = Math.cos(th), st = Math.sin(th);
+    const ce = Math.cos(P.CU_ELEV * (Math.PI / 180)), se = Math.sin(P.CU_ELEV * (Math.PI / 180));
+
+    cuR[0][0] = ct;       cuR[0][1] = 0;  cuR[0][2] = st;
+    cuR[1][0] = se * st;  cuR[1][1] = ce; cuR[1][2] = -se * ct;
+    cuR[2][0] = -ce * st; cuR[2][1] = se; cuR[2][2] = ce * ct;
+
+    const ih = 1 / P.CU_SIZE;
+    for (let k = 0; k < 3; k++) {
+      cuEx[k] = cuR[0][k] * ih;
+      cuEy[k] = cuR[1][k] * ih;
+      cuO[k] = CU_Z0 * cuR[2][k] - CU_CX * cuEx[k] - cuCyb * cuEy[k];
+      cuD[k] = -cuR[2][k];
+      const d = Math.abs(cuD[k]) < 1e-6 ? (cuD[k] < 0 ? -1e-6 : 1e-6) : cuD[k];
+      cuInv[k] = 1 / d;
+    }
+
+    let h = (P.CU_HUE % 360) * (1 / 60);
+    if (h < 0) h += 6;
+    const hi = h | 0, hf = h - hi;
+    const pure = [[1, hf, 0], [1 - hf, 1, 0], [0, 1, hf], [0, 1 - hf, 1], [hf, 0, 1], [1, 0, 1 - hf]][hi < 5 ? hi : 5];
+    const silver = [238, 242, 250];
+    for (let k = 0; k < 3; k++) cuTint[k] = silver[k] + (pure[k] * 255 - silver[k]) * P.CU_SAT;
+
+    for (let k = 0; k < 3; k++)
+      for (let s = 0; s < 2; s++) {
+        const sg = s ? 1 : -1;
+        const l = sg * (cuR[0][k] * CU_LIGHT[0] + cuR[1][k] * CU_LIGHT[1] + cuR[2][k] * CU_LIGHT[2]);
+        cuFace[k][s] = CU_AMB + (1 - CU_AMB) * (l > 0 ? l : 0);
+      }
+
+    const px = new Float32Array(8), py = new Float32Array(8);
+    for (let v = 0; v < 8; v++) {
+      const x = v & 1 ? 1 : -1, y = v & 2 ? 1 : -1, z = v & 4 ? 1 : -1;
+      px[v] = (cuR[0][0] * x + cuR[0][1] * y + cuR[0][2] * z) * P.CU_SIZE + CU_CX;
+      py[v] = (cuR[1][0] * x + cuR[1][1] * y + cuR[1][2] * z) * P.CU_SIZE + cuCyb;
+    }
+    const pad = P.CU_BEAM * 0.87 * P.CU_SIZE + 1;
+    for (let e = 0; e < 12; e++) {
+      const [a, b] = cuEdge[e];
+      cuBx0[e] = Math.min(px[a], px[b]) - pad; cuBx1[e] = Math.max(px[a], px[b]) + pad;
+      cuBy0[e] = Math.min(py[a], py[b]) - pad; cuBy1[e] = Math.max(py[a], py[b]) + pad;
+    }
+
+    const m = 0.5 * P.CU_BEAM;
+    for (let i = 0; i < 12; i++)
+      for (let j = 0; j < 12; j++) {
+        cuFlip[i][j] = false;
+        if (i === j || cuAdj[i][j] || !P.CU_IMPOSSIBLE) continue;
+        const x1 = px[cuEdge[i][0]], y1 = py[cuEdge[i][0]], x2 = px[cuEdge[i][1]], y2 = py[cuEdge[i][1]];
+        const x3 = px[cuEdge[j][0]], y3 = py[cuEdge[j][0]], x4 = px[cuEdge[j][1]], y4 = py[cuEdge[j][1]];
+        const d = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+        if (Math.abs(d) < 1e-3) continue;
+        const ta = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / d;
+        const tb = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / d;
+        if (ta <= -m || ta >= 1 + m || tb <= -m || tb >= 1 + m) continue;
+        cuFlip[i][j] = y1 + ta * (y2 - y1) < cuCyb;
+      }
+
+    let prev = rowA, cur = rowB;
+    for (let j = 0; j <= SCREEN_H; j++) {
+      const sy = SCREEN_H * 0.5 - j;
+      for (let i = 0; i <= SCREEN_W; i++) cur[i] = cuSample(i - SCREEN_W * 0.5, sy, P);
+      if (j > 0) {
+        const o = (j - 1) * SCREEN_W;
+        for (let i = 0; i < SCREEN_W; i++) fb[o + i] = avg4(prev[i], prev[i + 1], cur[i], cur[i + 1]);
+      }
+      const t = prev; prev = cur; cur = t;
+    }
+  }
+  // ---- core:end -----------------------------------------------
+
+  const DEFAULTS = {
+    CU_SIZE: 33.5, CU_BEAM: 0.34, CU_ELEV: 25.5, CU_AIM: 62.5, CU_SWEEP: 17, CU_SWING_MS: 14500, CU_BOB: 2.5, CU_BOB_MS: 3200,
+    CU_IMPOSSIBLE: 1, CU_GRAD: 0.35, CU_FOG: 0.43, CU_BG: 0.28, CU_SHADOW: 0.55,
+    CU_HUE: 253, CU_SAT: 0.53,
+  };
+  const CONTROLS = [
+    { key: "CU_SIZE", label: "Taille", min: 14, max: 40, step: 0.5, fix: 1,
+      show: (v) => (2 * v).toFixed(0) + " px de côté", hint: "Demi-côté du cube, en pixels. Au-dessus de 28, les coins touchent le bord en passant." },
+    { key: "CU_BEAM", label: "Épaisseur", min: 0.12, max: 0.6, step: 0.01, fix: 2,
+      show: (v) => (v * 50).toFixed(0) + " % du côté", hint: "Section des barres. Plus elles sont épaisses, plus les croisements se lisent." },
+    { key: "CU_ELEV", label: "Hauteur du regard", min: 5, max: 34, step: 0.5, fix: 1,
+      show: (v) => v.toFixed(1) + "°", hint: "On regarde le cube d'en haut. Près de 35°, la vue isométrique, les deux croisements se confondent au centre." },
+    { key: "CU_AIM", label: "Centre du pivot", min: 0, max: 90, step: 0.5, fix: 1,
+      show: (v) => v.toFixed(1) + "°", hint: "L'angle autour duquel le cube va et vient. 0° et 90° : de face. 45° : pile sur l'arête. Entre les deux, l'illusion tient." },
+    { key: "CU_SWEEP", label: "Amplitude", min: 0, max: 90, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + "° en tout", hint: "Angle total de l'aller-retour. Centré sur 67,5°, il doit rester sous 45° pour ne passer ni de face ni sur l'arête." },
+    { key: "CU_SWING_MS", label: "Durée d'un aller-retour", min: 3000, max: 40000, step: 500, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(1) + " s", hint: "Le cube ralentit aux deux bouts, comme le crâne." },
+    { key: "CU_BOB", label: "Flottement", min: 0, max: 10, step: 0.5, fix: 1,
+      show: (v) => "± " + v.toFixed(1) + " px", hint: "De combien le cube monte et descend, comme un cristal de l'End." },
+    { key: "CU_BOB_MS", label: "Rythme du flottement", min: 1000, max: 8000, step: 100, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(1) + " s", hint: "Durée d'une montée et d'une descente." },
+    { key: "CU_IMPOSSIBLE", label: "Impossible", min: 0, max: 1, step: 1, fix: 0, int: true,
+      show: (v) => v ? "oui" : "vrai cube", hint: "À 0, toutes les barres gardent leur vraie profondeur : c'est le cube ordinaire." },
+    { key: "CU_GRAD", label: "Dégradé", min: 0, max: 0.8, step: 0.01, fix: 2,
+      show: (v) => "± " + (v * 100).toFixed(0) + " %", hint: "La lumière glisse du haut-gauche vers le bas-droite, sur chaque barre." },
+    { key: "CU_FOG", label: "Profondeur", min: 0, max: 0.7, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Les barres du fond s'assombrissent. Assez haut, l'illusion se trahit : c'est voulu, à toi de voir." },
+    { key: "CU_BG", label: "Fond", min: 0, max: 0.6, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Gris du bas de l'écran. Le haut reste noir." },
+    { key: "CU_SHADOW", label: "Ombre", min: 0, max: 1, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "L'ombre au sol, plus petite et plus pâle quand le cube monte." },
+    { key: "CU_HUE", label: "Couleur", min: 0, max: 359, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + "°", hint: "La teinte du métal et du fond. 0 rouge, 60 jaune, 120 vert, 180 cyan, 240 bleu, 300 magenta." },
+    { key: "CU_SAT", label: "Intensité de la couleur", min: 0, max: 1, step: 0.01, fix: 2,
+      show: (v) => v ? (v * 100).toFixed(0) + " %" : "argent", hint: "À 0, le cube redevient le métal argenté du début. Les reflets les plus forts tirent toujours vers le blanc." },
+  ];
+  const COMMENT = {
+    CU_SIZE: "demi-côté du cube, pixels",
+    CU_BEAM: "épaisseur des barres, en demi-côtés",
+    CU_ELEV: "on regarde le cube d'en haut, de tant de degrés",
+    CU_AIM: "le cube pivote autour de cet angle, degrés (0 et 90 : de face, 45 : sur l'arête)",
+    CU_SWEEP: "angle total de l'aller-retour, degrés (sous 45 : ni de face ni sur l'arête)",
+    CU_SWING_MS: "un aller-retour complet, ms",
+    CU_BOB: "le cube monte et descend de ± tant, pixels",
+    CU_BOB_MS: "une oscillation, ms",
+    CU_IMPOSSIBLE: "1 : les croisements du bas s'inversent, 0 : vrai cube",
+    CU_GRAD: "dégradé de lumière du haut-gauche vers le bas-droite",
+    CU_FOG: "les barres du fond s'assombrissent de tant",
+    CU_BG: "gris du bas de l'écran (le haut est noir)",
+    CU_SHADOW: "ombre au sol",
+    CU_HUE: "teinte, degrés (0 rouge, 60 jaune, 120 vert, 180 cyan, 240 bleu, 300 magenta)",
+    CU_SAT: "0 : métal argenté, 1 : couleur pure (le fond prend la même teinte)",
+  };
+  const draw = drawCube;
+
+  // ============================================================
+  //  Page
+  // ============================================================
+  const P = { ...DEFAULTS };
+  const st = { t: 0, playing: true, speed: 1 };
+  const $ = (id) => document.getElementById(id);
+
+  const cv = $("screen"), ctx = cv.getContext("2d");
+  const img = ctx.createImageData(SCREEN_W, SCREEN_H);
+  const rgba = new Uint32Array(img.data.buffer);
+  const fb = new Uint16Array(SCREEN_W * SCREEN_H);
+
+  function paint() {
+    draw(fb, Math.floor(st.t * 1000), P);
+    for (let i = 0; i < fb.length; i++) {
+      const c = fb[i];
+      const r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+      rgba[i] = 0xFF000000 | (((b << 3) | (b >> 2)) << 16) | (((g << 2) | (g >> 4)) << 8) | ((r << 3) | (r >> 2));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  const literal = (c, v) => c.int ? String(Math.round(v)) : v.toFixed(c.fix) + "f";
+  function settings() {
+    const kw = Math.max(...CONTROLS.map((c) => c.key.length)) + 1;
+    const w = Math.max(...CONTROLS.map((c) => literal(c, P[c.key]).length));
+    $("settings").textContent = CONTROLS.map((c) =>
+      "#define " + c.key.padEnd(kw) + literal(c, P[c.key]).padEnd(w + 2) + "// " + COMMENT[c.key]).join("\n");
+  }
+
+  const panel = $("panel");
+  for (const c of CONTROLS) {
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML =
+      '<div class="label"><span>' + c.label + '</span><b id="v_' + c.key + '"></b></div>' +
+      '<input type="range" id="r_' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" aria-label="' + c.label + '">' +
+      '<div class="hint"><code>' + c.key + '</code> · ' + c.hint + '</div>';
+    panel.appendChild(f);
+    const r = f.querySelector("input");
+    r.addEventListener("input", () => { P[c.key] = +r.value; sync(); paint(); });
+  }
+  function sync() {
+    for (const c of CONTROLS) {
+      $("r_" + c.key).value = P[c.key];
+      $("v_" + c.key).textContent = c.show(P[c.key]);
+    }
+    settings();
+  }
+
+  // Le bloc part dans le presse-papiers avec le nom de l'animation en tête.
+  // Si le navigateur refuse, on sélectionne le bloc : il reste ⌘C.
+  let copyT = 0;
+  function copyLabel(msg) {
+    $("btnCopy").textContent = msg;
+    clearTimeout(copyT);
+    copyT = setTimeout(() => { $("btnCopy").textContent = "Copier les réglages"; }, 2500);
+  }
+  $("btnCopy").addEventListener("click", () => {
+    const text = "// " + document.title + "\n" + $("settings").textContent;
+    const selectBlock = () => {
+      const r = document.createRange();
+      r.selectNodeContents($("settings"));
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+      copyLabel("Sélectionné : ⌘C pour copier");
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => copyLabel("Copié"), selectBlock);
+    } catch (e) { selectBlock(); }
+  });
+  $("btnReset").addEventListener("click", () => { Object.assign(P, DEFAULTS); sync(); paint(); });
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => { st.t += 1 / 40; paint(); });
+  document.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
+    st.speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+
+  // ---- boucle ----------------------------------------------------
+  let prev = performance.now(), acc = 0, n = 0, msAcc = 0;
+  const FRAME = 1 / 40;
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      if (acc >= FRAME) {
+        const k = Math.min(Math.floor(acc / FRAME), 3);
+        acc -= k * FRAME;
+        st.t += k * FRAME * st.speed;
+        const t0 = performance.now();
+        paint();
+        msAcc += performance.now() - t0;
+        if (++n >= 20) {
+          $("fpsline").textContent = (msAcc / n).toFixed(1) + " ms par image dans le navigateur  ·  t = " + st.t.toFixed(1) + " s";
+          n = 0; msAcc = 0;
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  sync();
+  paint();
+  requestAnimationFrame(tick);
+})();
+</script>

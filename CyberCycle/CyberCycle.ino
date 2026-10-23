@@ -1,5 +1,5 @@
 /*
- * Cyber Cycle - twelve animations on a 15-minute rotation, and five more
+ * Cyber Cycle - twelve animations on a 15-minute rotation, and six more
  * kept off the list until they are wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
@@ -18,6 +18,7 @@
  *               beating against the tile grid, each read at a slightly
  *               different pitch by red, green and blue
  *   6 SphereColor  rotating point sphere with flowing rainbow colour fields
+ *               - OFF THE LIST, its place taken by the Escher cube (17)
  *   7 Scan      celestial scan: a sphere carved up by the isolines of a
  *               field that lives on it, with temperature and coordinate
  *               readouts wired to the point facing the viewer
@@ -50,11 +51,15 @@
  *               highlight circling the pupil, in a lattice of black
  *               circles growing out from above and below it
  *               The three Yeux eyes have no variant either
+ *  17 Escher    Escher's impossible cube in blue-violet metal, swinging
+ *               back and forth and floating like an End crystal: below
+ *               its centre, the far beam crosses in front of the near
+ *               one. No variant
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
- *                (Skull and the three Yeux eyes have none, so on those
- *                views it does nothing)
+ *                (Skull, the three Yeux eyes and the Escher cube have
+ *                none, so on those views it does nothing)
  *
  * Everything shares one static framebuffer. The celestial scan is the only
  * view that also writes to the panel directly, for its text: the framebuffer
@@ -109,28 +114,28 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 17
+#define NUM_ANIMS 18
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
 //  View ids:  0 Morph   1 Grid    2 Waves   3 Buddha  4 Swarm
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
 //            10 World   11 Hypno  12 ColorText  13 Skull
-//            14 Rainbow 15 Blue   16 Curtain
-//  Four of these are spheres (1, 6, 7, 10) and five are eyes (8, 11, 14,
-//  15, 16), so the order below spaces both out: never two spheres or two
-//  eyes back to back.
+//            14 Rainbow 15 Blue   16 Curtain  17 Escher
+//  Three of those on the list are spheres (1, 7, 10) and five are eyes
+//  (8, 11, 14, 15, 16), so the order below spaces both out: never two
+//  spheres or two eyes back to back.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
 //  Off the list, and kept in the file: 2 Waves, 3 Buddha, 4 Swarm,
-//  9 Tunnel, 12 ColorText. Each comes back by adding its id below -
+//  6 SphereColor, 9 Tunnel, 12 ColorText. Each comes back by adding its id below -
 //  nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 13, 14, 7, 8, 0, 16, 1, 11, 10, 15, 5, 6 };
+static int viewOrder[] = { 13, 14, 7, 8, 0, 16, 1, 11, 10, 15, 5, 17 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -3195,6 +3200,259 @@ static void initYeux() {
 }
 
 // ======================================================================
+// 17 - ESCHER CUBE (ported from EscherCube/)
+//      Escher's impossible cube in tinted metal, swinging back and forth
+//      and floating up and down like a Minecraft End crystal. Twelve
+//      square beams, one per edge, ray-cast per pixel in an orthographic
+//      view: in the cube's own frame every beam is an axis-aligned box.
+//      The illusion is one rule. Two beams with no corner in common that
+//      cross on screen: above the cube's centre the nearer one wins, as in
+//      a real cube; below it the farther one does. The top of the cube is
+//      seen from above, the bottom from below. Beams sharing a corner keep
+//      their true depth, or the corners would tear.
+//      Seen face-on there are no crossings, and seen exactly on the edge
+//      (45 deg) the far corner hides behind the near upright: the illusion
+//      fades out at both. So the cube never turns all the way round - it
+//      swings between those two views, around CU_AIM, and CU_SWEEP stays
+//      well inside the gap.
+//      Edges are smoothed by shading one sample per pixel corner (129 x
+//      129) and averaging each pixel's four corners. No variant.
+//      The sine table and the clock phase are the Yeux helpers above.
+// ======================================================================
+// ---- the cube
+#define CU_SIZE       33.5f    // half the cube's side, pixels
+#define CU_BEAM       0.34f    // beam thickness, in half-sides
+#define CU_ELEV       25.5f    // we look down on the cube by this many degrees
+// ---- the motion
+#define CU_AIM        62.5f    // the cube swings about this angle, degrees (0 and 90: face-on, 45: on the edge)
+#define CU_SWEEP      17.0f    // total swing, degrees (under 45: never face-on, never on the edge)
+#define CU_SWING_MS   14500    // one full swing there and back, ms
+#define CU_BOB        2.5f     // the cube rises and falls by +/- this, pixels
+#define CU_BOB_MS     3200     // one rise and fall, ms
+// ---- the illusion
+#define CU_IMPOSSIBLE 1        // 1: the lower crossings swap over, 0: a real cube
+// ---- the light
+#define CU_GRAD       0.35f    // light gradient from top left to bottom right
+#define CU_FOG        0.43f    // the far beams darken by this much
+#define CU_BG         0.28f    // brightness of the bottom of the screen (the top is black)
+#define CU_SHADOW     0.55f    // shadow on the ground
+// ---- the colour
+#define CU_HUE        253.0f   // hue, degrees (0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta)
+#define CU_SAT        0.53f    // 0: silver metal, 1: pure colour (the background takes the same hue)
+
+// Height of the cube's centre and of the ground, pixels above the middle
+// of the screen. Half a pixel to the right: seen on the edge, the fold of
+// the near upright would land right on a column of samples and saw-tooth.
+// The light comes from the top left, a little from the front.
+#define CU_CY         3.0f
+#define CU_CX         0.5f
+#define CU_GROUND   -56.0f
+static const float CU_LIGHT[3] = { -0.45f, 0.72f, 0.53f };
+#define CU_AMB        0.16f
+#define CU_Z0         3.0f     // the ray starts this many half-sides in front of the centre
+#define CU_NS         (SCREEN_W + 1)
+
+static uint32_t cuRowA[CU_NS], cuRowB[CU_NS];   // two rows of corner samples, RGB 8 bits each
+
+static inline float cuClamp(float v, float a, float b) { return v < a ? a : (v > b ? b : v); }
+static inline uint32_t cuRgb888(float r, float g, float b) {
+  return ((uint32_t)cuClamp(r, 0, 255) << 16) | ((uint32_t)cuClamp(g, 0, 255) << 8) | (uint32_t)cuClamp(b, 0, 255);
+}
+// Average of four 888 colours, returned as 565
+static inline uint16_t cuAvg4(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+  uint32_t r = ((a >> 16) + (b >> 16) + (c >> 16) + (d >> 16)) >> 2;
+  uint32_t g = (((a >> 8) & 255) + ((b >> 8) & 255) + ((c >> 8) & 255) + ((d >> 8) & 255)) >> 2;
+  uint32_t bl = ((a & 255) + (b & 255) + (c & 255) + (d & 255)) >> 2;
+  return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (bl >> 3));
+}
+
+// Vertex v: x = +/-1 from bit 0, y from bit 1, z from bit 2.
+static uint8_t cuEdge[12][2];
+static bool cuAdj[12][12];                   // the two beams share a corner
+static float cuMin[12][3], cuMax[12][3];     // each beam's box, cube frame
+
+static void initEscherCube() {
+  int n = 0;
+  for (int v = 0; v < 8; v++)
+    for (int k = 0; k < 3; k++)
+      if (!(v & (1 << k))) { cuEdge[n][0] = v; cuEdge[n][1] = v | (1 << k); n++; }
+  const float hw = CU_BEAM * 0.5f;
+  for (int e = 0; e < 12; e++) {
+    int a = cuEdge[e][0], b = cuEdge[e][1];
+    for (int k = 0; k < 3; k++) {
+      float pa = (a >> k) & 1 ? 1.0f : -1.0f, pb = (b >> k) & 1 ? 1.0f : -1.0f;
+      cuMin[e][k] = (pa < pb ? pa : pb) - hw;
+      cuMax[e][k] = (pa > pb ? pa : pb) + hw;
+    }
+  }
+  for (int i = 0; i < 12; i++)
+    for (int j = 0; j < 12; j++)
+      cuAdj[i][j] = cuEdge[i][0] == cuEdge[j][0] || cuEdge[i][0] == cuEdge[j][1] ||
+                    cuEdge[i][1] == cuEdge[j][0] || cuEdge[i][1] == cuEdge[j][1];
+}
+
+// Per-frame state
+static float cuR[3][3];                      // cube frame -> screen
+static float cuO[3], cuEx[3], cuEy[3], cuInv[3], cuD[3];
+static float cuFace[3][2];                   // light on each face (axis, side)
+static float cuBx0[12], cuBx1[12], cuBy0[12], cuBy1[12];   // each beam's box on screen
+static bool cuFlip[12][12];                  // this crossing swaps over
+static float cuCyb, cuBobN;
+static float cuTint[3];                      // the metal's colour in full light
+
+// Colour of one pixel corner. sx, sy: pixels from the middle, y up.
+static uint32_t cuSample(float sx, float sy) {
+  float ox = cuO[0] + sx * cuEx[0] + sy * cuEy[0];
+  float oy = cuO[1] + sx * cuEx[1] + sy * cuEy[1];
+  float oz = cuO[2] + sx * cuEx[2] + sy * cuEy[2];
+  int best = -1, bestAx = 0;
+  float bestT = 0;
+  for (int e = 0; e < 12; e++) {
+    if (sx < cuBx0[e] || sx > cuBx1[e] || sy < cuBy0[e] || sy > cuBy1[e]) continue;
+    float t1 = (cuMin[e][0] - ox) * cuInv[0], t2 = (cuMax[e][0] - ox) * cuInv[0];
+    float tn = t1 < t2 ? t1 : t2, tf = t1 < t2 ? t2 : t1;
+    int ax = 0;
+    t1 = (cuMin[e][1] - oy) * cuInv[1]; t2 = (cuMax[e][1] - oy) * cuInv[1];
+    float a = t1 < t2 ? t1 : t2, b = t1 < t2 ? t2 : t1;
+    if (a > tn) { tn = a; ax = 1; }
+    if (b < tf) tf = b;
+    t1 = (cuMin[e][2] - oz) * cuInv[2]; t2 = (cuMax[e][2] - oz) * cuInv[2];
+    a = t1 < t2 ? t1 : t2; b = t1 < t2 ? t2 : t1;
+    if (a > tn) { tn = a; ax = 2; }
+    if (b < tf) tf = b;
+    if (tn >= tf) continue;
+    // The nearer beam wins, except at the swapped crossings
+    bool wins;
+    if (best < 0) wins = true;
+    else if (cuFlip[e][best]) wins = tn > bestT;
+    else wins = tn < bestT;
+    if (wins) { best = e; bestT = tn; bestAx = ax; }
+  }
+
+  if (best < 0) {
+    // The background: black at the top, tinted grey at the bottom, and
+    // the cube's shadow on the ground
+    float j = (SCREEN_H * 0.5f - sy) * (1.0f / SCREEN_H);
+    float v = CU_BG * j * j;
+    float rx = CU_SIZE * 1.3f * (1.0f - 0.15f * cuBobN), ry = rx * 0.22f;
+    float qx = (sx - CU_CX) / rx, qy = (sy - CU_GROUND) / ry;
+    float q = 1.0f - (qx * qx + qy * qy);
+    if (q > 0) v *= 1.0f - CU_SHADOW * (0.8f - 0.2f * cuBobN) * q * (2.0f - q);
+    return cuRgb888(v * cuTint[0], v * cuTint[1], v * cuTint[2]);
+  }
+
+  float v = cuFace[bestAx][cuD[bestAx] > 0 ? 0 : 1];
+  float rr = 1.0f / (CU_SIZE * 1.6f);
+  float g = (-0.55f * (sx - CU_CX) + 0.83f * (sy - cuCyb)) * rr;
+  v *= 1.0f + CU_GRAD * g;
+  float dz = (bestT - CU_Z0) * (1.0f / 1.8f);   // -1 in front, +1 at the back
+  v *= 1.0f - CU_FOG * (0.5f + 0.5f * dz);
+  // The strongest highlights run to white, as on metal
+  float hl = cuClamp((v - 0.8f) * 1.5f, 0, 0.5f);
+  return cuRgb888(v * cuTint[0] + (255 - cuTint[0]) * hl,
+                  v * cuTint[1] + (255 - cuTint[1]) * hl,
+                  v * cuTint[2] + (255 - cuTint[2]) * hl);
+}
+
+static void animEscherCube(float t) {
+  const uint32_t clock = (uint32_t)(t * 1000.0f);
+  // Between the face-on view and the edge-on view, slowing at both ends
+  float th = (CU_AIM + 0.5f * CU_SWEEP * sinf(yxPhase(clock, CU_SWING_MS) * 2.0f * PI)) * (PI / 180);
+  cuBobN = yxSinTurn(yxPhase(clock, CU_BOB_MS));
+  cuCyb = CU_CY + CU_BOB * cuBobN;
+  float ct = cosf(th), st = sinf(th);
+  float ce = cosf(CU_ELEV * (PI / 180)), se = sinf(CU_ELEV * (PI / 180));
+
+  // Turn about the vertical, then tip forward to look down on it
+  cuR[0][0] = ct;        cuR[0][1] = 0;  cuR[0][2] = st;
+  cuR[1][0] = se * st;   cuR[1][1] = ce; cuR[1][2] = -se * ct;
+  cuR[2][0] = -ce * st;  cuR[2][1] = se; cuR[2][2] = ce * ct;
+
+  // The ray in the cube's frame: its origin is linear in (sx, sy), its
+  // direction fixed (into the screen)
+  const float ih = 1.0f / CU_SIZE;
+  for (int k = 0; k < 3; k++) {
+    cuEx[k] = cuR[0][k] * ih;
+    cuEy[k] = cuR[1][k] * ih;
+    cuO[k] = CU_Z0 * cuR[2][k] - CU_CX * cuEx[k] - cuCyb * cuEy[k];
+    cuD[k] = -cuR[2][k];
+    float d = fabsf(cuD[k]) < 1e-6f ? (cuD[k] < 0 ? -1e-6f : 1e-6f) : cuD[k];
+    cuInv[k] = 1.0f / d;
+  }
+
+  // The tint: from silver (CU_SAT = 0) to the pure hue
+  float h = fmodf(CU_HUE, 360.0f) * (1.0f / 60.0f);
+  if (h < 0) h += 6.0f;
+  int hi = (int)h;
+  float hf = h - hi, pure[3];
+  switch (hi) {
+    case 0:  pure[0] = 1;      pure[1] = hf;     pure[2] = 0;      break;
+    case 1:  pure[0] = 1 - hf; pure[1] = 1;      pure[2] = 0;      break;
+    case 2:  pure[0] = 0;      pure[1] = 1;      pure[2] = hf;     break;
+    case 3:  pure[0] = 0;      pure[1] = 1 - hf; pure[2] = 1;      break;
+    case 4:  pure[0] = hf;     pure[1] = 0;      pure[2] = 1;      break;
+    default: pure[0] = 1;      pure[1] = 0;      pure[2] = 1 - hf; break;
+  }
+  const float silver[3] = { 238, 242, 250 };
+  for (int k = 0; k < 3; k++) cuTint[k] = silver[k] + (pure[k] * 255 - silver[k]) * CU_SAT;
+
+  // The light on each face
+  for (int k = 0; k < 3; k++)
+    for (int s = 0; s < 2; s++) {
+      float sg = s ? 1.0f : -1.0f;   // side 0: the face seen when cuD > 0, so facing -k
+      float l = sg * (cuR[0][k] * CU_LIGHT[0] + cuR[1][k] * CU_LIGHT[1] + cuR[2][k] * CU_LIGHT[2]);
+      cuFace[k][s] = CU_AMB + (1.0f - CU_AMB) * (l > 0 ? l : 0);
+    }
+
+  // The corners on screen
+  float px[8], py[8];
+  for (int v = 0; v < 8; v++) {
+    float x = v & 1 ? 1.0f : -1.0f, y = v & 2 ? 1.0f : -1.0f, z = v & 4 ? 1.0f : -1.0f;
+    px[v] = (cuR[0][0] * x + cuR[0][1] * y + cuR[0][2] * z) * CU_SIZE + CU_CX;
+    py[v] = (cuR[1][0] * x + cuR[1][1] * y + cuR[1][2] * z) * CU_SIZE + cuCyb;
+  }
+  const float pad = CU_BEAM * 0.87f * CU_SIZE + 1.0f;
+  for (int e = 0; e < 12; e++) {
+    int a = cuEdge[e][0], b = cuEdge[e][1];
+    cuBx0[e] = (px[a] < px[b] ? px[a] : px[b]) - pad; cuBx1[e] = (px[a] > px[b] ? px[a] : px[b]) + pad;
+    cuBy0[e] = (py[a] < py[b] ? py[a] : py[b]) - pad; cuBy1[e] = (py[a] > py[b] ? py[a] : py[b]) + pad;
+  }
+
+  // The crossings: two beams with no corner in common whose axes cut each
+  // other on screen. Below the cube's centre the order swaps. Crossings
+  // just past an end, on the corner, count too: seen on the edge, the far
+  // corner sits right behind the near upright and must come in front of it
+  // as well.
+  const float m = 0.5f * CU_BEAM;
+  for (int i = 0; i < 12; i++)
+    for (int j = 0; j < 12; j++) {
+      cuFlip[i][j] = false;
+      if (i == j || cuAdj[i][j] || !CU_IMPOSSIBLE) continue;
+      float x1 = px[cuEdge[i][0]], y1 = py[cuEdge[i][0]], x2 = px[cuEdge[i][1]], y2 = py[cuEdge[i][1]];
+      float x3 = px[cuEdge[j][0]], y3 = py[cuEdge[j][0]], x4 = px[cuEdge[j][1]], y4 = py[cuEdge[j][1]];
+      float d = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+      if (fabsf(d) < 1e-3f) continue;
+      float ta = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / d;
+      float tb = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / d;
+      if (ta <= -m || ta >= 1 + m || tb <= -m || tb >= 1 + m) continue;
+      cuFlip[i][j] = y1 + ta * (y2 - y1) < cuCyb;
+    }
+
+  // One row of corners at a time; each pixel averages its four corners
+  uint32_t *prev = cuRowA, *cur = cuRowB;
+  for (int j = 0; j <= SCREEN_H; j++) {
+    float sy = SCREEN_H * 0.5f - j;
+    for (int i = 0; i <= SCREEN_W; i++) cur[i] = cuSample(i - SCREEN_W * 0.5f, sy);
+    if (j > 0) {
+      uint16_t *out = fb + (j - 1) * SCREEN_W;
+      for (int i = 0; i < SCREEN_W; i++) out[i] = cuAvg4(prev[i], prev[i + 1], cur[i], cur[i + 1]);
+    }
+    uint32_t *tmp = prev; prev = cur; cur = tmp;
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -3234,6 +3492,7 @@ void setup() {
 
   randomSeed(analogRead(4) * millis());
   initYeux();
+  initEscherCube();
 
   // Default variant per view (untouched-by-buttons look)
   variant[0] = 1;   // Morph : widest chroma bleed (the one that smears most)
@@ -3286,6 +3545,7 @@ void loop() {
     case 14: animRainbowEye(animTime); break;
     case 15: animBlueEye(animTime);  break;
     case 16: animCurtainEye(animTime); break;
+    case 17: animEscherCube(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {
