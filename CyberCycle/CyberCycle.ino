@@ -39,7 +39,7 @@
  *  13 Skull     a lit skull in the round, rocking about its own axis:
  *               eighteen ellipsoids, nine added and nine carved out,
  *               one ray per pixel, dithered to pure black and white.
- *               First in the rotation, with no variant - there is
+ *               Last in the rotation, with no variant - there is
  *               nothing here worth switching
  *  14 Rainbow   the rainbow eye of the Yeux wall piece: sixteen almonds
  *               of colour turning about the white, a red ball that
@@ -54,7 +54,7 @@
  *  17 Escher    Escher's impossible cube in blue-violet metal, swinging
  *               back and forth and floating like an End crystal: below
  *               its centre, the far beam crosses in front of the near
- *               one. No variant
+ *               one. First in the rotation, no variant
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -126,16 +126,15 @@ static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
 //            10 World   11 Hypno  12 ColorText  13 Skull
 //            14 Rainbow 15 Blue   16 Curtain  17 Escher
-//  Three of those on the list are spheres (1, 7, 10) and five are eyes
-//  (8, 11, 14, 15, 16), so the order below spaces both out: never two
-//  spheres or two eyes back to back.
+//  The order below is Yuri's, chosen on 23/10/2026: the Escher cube
+//  opens the cycle and the skull closes it.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
 //  Off the list, and kept in the file: 2 Waves, 3 Buddha, 4 Swarm,
 //  6 SphereColor, 9 Tunnel, 12 ColorText. Each comes back by adding its id below -
 //  nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 13, 14, 7, 8, 0, 16, 1, 11, 10, 15, 5, 17 };
+static int viewOrder[] = { 17, 14, 10, 11, 5, 15, 1, 8, 16, 0, 7, 13 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view

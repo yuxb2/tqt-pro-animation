@@ -6,8 +6,8 @@ Animations pour LilyGo **T-QT Pro** (ESP32-S3, écran 128×128 GC9A01), avec mis
 Dépôt : https://github.com/yuxb2/tqt-pro-animation
 
 Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
-chacune, **`Skull` en tête**. Bouton gauche = animation suivante, bouton
-droit = variante.
+chacune, **le cube d'Escher en tête** et `Skull` en dernier. Bouton gauche =
+animation suivante, bouton droit = variante.
 
 > Six autres attendent hors liste, sans être supprimées du fichier. Il suffit
 > d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
