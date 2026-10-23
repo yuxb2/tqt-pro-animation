@@ -536,9 +536,11 @@ static void animMorph(float dt) {
 //
 // Two ring behaviours, chosen by variant:
 //
-//   BREATHING (variant 0, default): the globe starts as one equatorial ring.
-//     Rings then fade in while the whole set expands with equal spacing, so
-//     the changing count never creates an isolated oversized gap.
+//   BREATHING (variant 0, default): the count of rings swells from one
+//     equatorial ring to fifteen and back, the whole set spreading with
+//     equal spacing, so the changing count never leaves an oversized gap.
+//     The view opens at GRID_START_S, near the fullest moment, rather than
+//     on the lone ring at t = 0.
 //   STATIC (variant 1): the earlier look - rings fade in at fixed latitudes
 //     by binary subdivision (thresholds in latThr) without sliding.
 //
@@ -549,6 +551,11 @@ static void animMorph(float dt) {
 #define NM_MAX    8                // meridian slots
 #define PHI_MAX  1.45f             // pole latitude (near pi/2 -> rings vanish there)
 #define FLOW     0.14f             // breathing rate for the ring count
+// Where the view's clock starts, seconds. At 21 s fourteen rings are full
+// and the fifteenth is 86% in, and the globe is tipped 37 deg towards us -
+// close to an isometric view, every ring an open ellipse. Only the starting
+// point moves: the motion from there is the same as before.
+#define GRID_START_S 21.0f
 
 // Static mode: reveal threshold per fixed-latitude ring (extremes first).
 static const float latThr[NL_MAX] = {
@@ -605,6 +612,7 @@ static void gPlot(float x, float y, float z,
 }
 
 static void animGrid(float t) {
+  t += GRID_START_S;
   int v = variant[1];
   // v0 (default): evenly-spaced breathing latitudes, no perpendicular rings.
   // v1: static fade-in-place look. v2: breathing latitudes + meridians.
@@ -626,7 +634,6 @@ static void animGrid(float t) {
     // The count changes continuously from one to fifteen rings. Every ring is
     // then positioned from that same fractional count, which keeps all gaps
     // evenly distributed instead of leaving a sudden empty band on the globe.
-    // At t=0 this deliberately evaluates to one clear equatorial ring.
     const float count = 1.0f + (NL_MAX - 1) * 0.5f *
                         (1.0f - cosf(t * FLOW));
     const int whole = (int)floorf(count);
