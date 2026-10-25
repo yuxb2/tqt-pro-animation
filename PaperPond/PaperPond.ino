@@ -1,8 +1,9 @@
 /*
  * PaperPond — LilyGO T-QT Pro (ESP32-S3, écran 128x128)
  * -----------------------------------------------------
- * Une mare en papier découpé : des couches empilées, du bleu pâle au bord
- * jusqu'au bleu nuit au fond, dont les bords ondulent doucement. Un ou deux
+ * Une mare en papier découpé : des couches empilées, du bleu nuit au bord
+ * jusqu'au bleu pâle au fond (PD_INVERT ; à 0, c'est l'inverse), dont les
+ * bords ondulent doucement. Un ou deux
  * poissons rouges en papier nagent au-dessus et leur ombre glisse sur les
  * couches.
  *
@@ -51,6 +52,7 @@
 
 // ---- La lumière ----------------------------------------------
 #define PD_CURVE      0.60f    // répartition des bleus : sous 1, on fonce plus vite
+#define PD_INVERT     1        // 0 : pâle au bord, nuit au fond ; 1 : l'inverse
 #define PD_SHADOW     0.62f    // force des ombres entre les couches
 #define PD_SHADOW_LEN 5        // longueur de l'ombre portée, pixels (entier)
 #define PD_SOFT       3.0f     // flou de l'ombre, pixels
@@ -222,10 +224,12 @@ static void drawPond(uint32_t clock) {
       pdF[j * PD_GW + i] = pdField(i - PD_M - SCREEN_W * 0.5f, j - PD_M - SCREEN_H * 0.5f, ph);
 
   // Les couches : un niveau et un bleu chacune, du pâle au bord au bleu nuit
+  // (ou l'inverse, avec PD_INVERT)
   const float out[3] = { 172, 189, 207 }, deep[3] = { 14, 30, 52 };
   for (int k = 0; k < PD_LAYERS; k++) {
     pdLv[k] = k ? PD_EDGE + (k - 1) * (PD_CORE - PD_EDGE) / (PD_LAYERS - 2) : -1e9f;
-    float t = powf((float)k / (PD_LAYERS - 1), PD_CURVE);
+    // Inversée, la nuit est au bord et le pâle au fond ; PD_CURVE part alors du fond
+    float t = powf((float)(PD_INVERT ? PD_LAYERS - 1 - k : k) / (PD_LAYERS - 1), PD_CURVE);
     for (int c = 0; c < 3; c++) pdCol[k][c] = out[c] + (deep[c] - out[c]) * t;
   }
 

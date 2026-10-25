@@ -278,7 +278,7 @@
     const out = [172, 189, 207], deep = [14, 30, 52];
     for (let k = 0; k < P.PD_LAYERS; k++) {
       pdLv[k] = k ? P.PD_EDGE + (k - 1) * (P.PD_CORE - P.PD_EDGE) / (P.PD_LAYERS - 2) : -1e9;
-      const t = Math.pow(k / (P.PD_LAYERS - 1), P.PD_CURVE);
+      const t = Math.pow((P.PD_INVERT ? P.PD_LAYERS - 1 - k : k) / (P.PD_LAYERS - 1), P.PD_CURVE);
       for (let c = 0; c < 3; c++) pdCol[k][c] = out[c] + (deep[c] - out[c]) * t;
     }
 
@@ -364,7 +364,7 @@
 
   const DEFAULTS = {
     PD_LAYERS: 6, PD_RX: 69, PD_RY: 73, PD_EDGE: 0, PD_CORE: 0.75, PD_WOBBLE: 0.12, PD_DRIFT_MS: 10000,
-    PD_CURVE: 0.6, PD_SHADOW: 0.62, PD_SHADOW_LEN: 5, PD_SOFT: 3, PD_RIM: 0.1, PD_GRAIN: 0.04,
+    PD_CURVE: 0.6, PD_INVERT: 1, PD_SHADOW: 0.62, PD_SHADOW_LEN: 5, PD_SOFT: 3, PD_RIM: 0.1, PD_GRAIN: 0.04,
     FI_COUNT: 2, FI_LEN: 37, FI_WIDTH: 0.17, FI_HUE: 6, FI_RANGE: 0.5, FI_WANDER: 0.3, FI_SWIM_MS: 26000,
     FI_WAG: 0.13, FI_WAG_MS: 800, FI_LIFT: 6.5, FI_SHADOW: 0.45, FI_FOLD: 0.16,
   };
@@ -385,6 +385,8 @@
       show: (v) => (v / 1000).toFixed(0) + " s", hint: "Temps d'un cycle complet de la dérive. Plus long, plus calme." },
     { key: "PD_CURVE", label: "Répartition des bleus", min: 0.4, max: 2, step: 0.05, fix: 2,
       show: (v) => v.toFixed(2), hint: "Sous 1, on fonce vite dès les premières couches ; au-dessus, le bleu nuit est gardé pour le fond." },
+    { key: "PD_INVERT", label: "Couleurs inversées", min: 0, max: 1, step: 1, fix: 0, int: true,
+      show: (v) => v ? "nuit au bord" : "pâle au bord", hint: "À 1, le bleu nuit passe à l'extérieur et le pâle au fond de la mare. La répartition des bleus part alors du fond." },
     { key: "PD_SHADOW", label: "Ombres des couches", min: 0, max: 0.9, step: 0.01, fix: 2,
       show: (v) => (v * 100).toFixed(0) + " %", hint: "Force de l'ombre qu'une feuille jette sur la suivante." },
     { key: "PD_SHADOW_LEN", label: "Longueur de l'ombre", min: 0, max: 9, step: 1, fix: 0, int: true,
@@ -429,6 +431,7 @@
     PD_WOBBLE: "ondulation des bords",
     PD_DRIFT_MS: "les bords font un cycle complet en tant de ms",
     PD_CURVE: "répartition des bleus : sous 1, on fonce plus vite",
+    PD_INVERT: "0 : pâle au bord, nuit au fond ; 1 : l'inverse",
     PD_SHADOW: "force des ombres entre les couches",
     PD_SHADOW_LEN: "longueur de l'ombre portée, pixels (entier)",
     PD_SOFT: "flou de l'ombre, pixels",

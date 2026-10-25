@@ -1,7 +1,7 @@
 # PaperPond — T-QT Pro
 
-Une mare en papier découpé : des feuilles empilées, du bleu pâle au bord
-jusqu'au bleu nuit au fond, dont les bords ondulent doucement. Deux poissons
+Une mare en papier découpé : des feuilles empilées, du bleu nuit au bord
+jusqu'au bleu pâle au fond, dont les bords ondulent doucement. Deux poissons
 rouges en papier plié nagent au-dessus, et leur ombre glisse d'une feuille à
 l'autre.
 
@@ -55,6 +55,7 @@ Choisis dans l'aperçu le 25/10/2026.
 | `PD_WOBBLE` | `0.120` | ondulation des bords. |
 | `PD_DRIFT_MS` | `10000` | un cycle complet de la dérive. |
 | `PD_CURVE` | `0.60` | répartition des bleus : sous 1, on fonce vite dès les premières feuilles. |
+| `PD_INVERT` | `1` | 1 : bleu nuit au bord, pâle au fond (choisi le 25/10/2026) ; 0 : pâle au bord, comme l'image de départ. Inversée, la répartition des bleus part du fond. |
 | `PD_SHADOW` | `0.62` | force des ombres entre les feuilles. |
 | `PD_SHADOW_LEN` | `5` | décalage de l'ombre portée, en pixels entiers. |
 | `PD_SOFT` | `3.0` | flou de l'ombre, en pixels. |

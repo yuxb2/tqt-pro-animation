@@ -56,7 +56,8 @@
  *               back and forth and floating like an End crystal: below
  *               its centre, the far beam crosses in front of the near
  *               one. First in the rotation, no variant
- *  18 Pond      a pond in cut paper, its sheets swaying slowly, two red
+ *  18 Pond      a pond in cut paper, night blue at the rim and pale at the
+ *               bottom, its sheets swaying slowly, two red
  *               paper fish swimming above it and their shadows sliding
  *               from sheet to sheet. No variant
  *
@@ -3467,8 +3468,9 @@ static void animEscherCube(float t) {
 
 // ======================================================================
 // 18 - PAPER POND (ported from PaperPond/)
-//      A pond in cut paper: stacked sheets, pale blue at the rim down to
-//      night blue at the bottom, whose edges sway slowly. Two red paper
+//      A pond in cut paper: stacked sheets whose edges sway slowly, night
+//      blue at the rim and pale blue at the bottom (PD_INVERT; 0 puts the
+//      pale one at the rim). Two red paper
 //      fish swim above it and their shadows slide from sheet to sheet.
 //      Every cut is a level line of one field - an ellipse plus four
 //      drifting waves - so the sheets always stay nested, each swaying a
@@ -3501,6 +3503,7 @@ static void animEscherCube(float t) {
 #define PD_DRIFT_MS   10000    // the edges go through one full drift in this many ms
 // ---- the light
 #define PD_CURVE      0.60f    // spread of the blues: under 1, it darkens sooner
+#define PD_INVERT     1        // 0: pale at the rim, night blue at the bottom; 1: the other way round
 #define PD_SHADOW     0.62f    // strength of the shadows between sheets
 #define PD_SHADOW_LEN 5        // length of the cast shadow, pixels (whole number)
 #define PD_SOFT       3.0f     // shadow blur, pixels
@@ -3637,7 +3640,9 @@ static void animPaperPond(float t) {
   const float out[3] = { 172, 189, 207 }, deep[3] = { 14, 30, 52 };
   for (int k = 0; k < PD_LAYERS; k++) {
     pdLv[k] = k ? PD_EDGE + (k - 1) * (PD_CORE - PD_EDGE) / (PD_LAYERS - 2) : -1e9f;
-    float tt = powf((float)k / (PD_LAYERS - 1), PD_CURVE);
+    // Inverted, the night blue is at the rim and the pale one at the bottom;
+    // PD_CURVE then counts from the bottom
+    float tt = powf((float)(PD_INVERT ? PD_LAYERS - 1 - k : k) / (PD_LAYERS - 1), PD_CURVE);
     for (int c = 0; c < 3; c++) pdCol[k][c] = out[c] + (deep[c] - out[c]) * tt;
   }
 
@@ -3661,8 +3666,18 @@ static void animPaperPond(float t) {
   const float reach = 0.65f * FI_LEN + 2.0f;
 
   int filled = 0;                            // grid rows computed so far
+  const int slotAtStart = slot;
   uint32_t *prev = cuRowA, *cur = cuRowB;
   for (int j = 0; j <= SCREEN_H; j++) {
+    // A frame here is long enough for a click to wait several frames, and
+    // a second, impatient one to land on the next view. So the buttons are
+    // read every 16 rows. If one moves on, stop at once: the new view's
+    // initAnim() may already have rebuilt viewScratch, our ring.
+    if ((j & 15) == 15) {
+      btnLeft.tick();
+      btnRight.tick();
+      if (slot != slotAtStart) return;
+    }
     // Fill the ring up to the row below this one
     for (; filled <= j + PD_M + 1; filled++) {
       float *row = pdRing[filled & (PD_RING - 1)];
@@ -3840,7 +3855,9 @@ void loop() {
     case 18: animPaperPond(animTime); break;
   }
 
-  if (now - animStart >= ANIM_MS) {
+  // millis() read afresh: a click during this frame set animStart after
+  // `now`, and now - animStart would wrap round and skip the new view.
+  if (millis() - animStart >= ANIM_MS) {
     slot = (slot + 1) % N_VIEWS;
     initAnim(viewOrder[slot]);
   }
