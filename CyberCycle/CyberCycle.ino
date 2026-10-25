@@ -1,8 +1,9 @@
 /*
- * Cyber Cycle - twelve animations on a 15-minute rotation, and six more
+ * Cyber Cycle - twelve animations on a 15-minute rotation, and seven more
  * kept off the list until they are wanted
  *
  *   0 Morph     spinning wireframe solid with RGB chroma split (cube/octa)
+ *               - OFF THE LIST, its place taken by the paper pond (18)
  *   1 Sphere    "Sphere pointillisme 1": RGB-split dotted wireframe globe,
  *               latitude rings that slide down the sphere and grow in number
  *   2 Waves     a sheet of horizontal lines rolling under three printings of
@@ -55,6 +56,9 @@
  *               back and forth and floating like an End crystal: below
  *               its centre, the far beam crosses in front of the near
  *               one. First in the rotation, no variant
+ *  18 Pond      a pond in cut paper, its sheets swaying slowly, two red
+ *               paper fish swimming above it and their shadows sliding
+ *               from sheet to sheet. No variant
  *
  * Left button  : next animation (resets its 15-minute timer)
  * Right button : per-animation variant - palette, shape, figure, mood, etc.
@@ -114,11 +118,11 @@ static uint16_t fb[SCREEN_W * SCREEN_H];   // 32 KB main framebuffer
 OneButton btnLeft(PIN_BTN_L, true, true);
 OneButton btnRight(PIN_BTN_R, true, true);
 
-#define NUM_ANIMS 18
+#define NUM_ANIMS 19
 #define ANIM_MS   (15UL * 60UL * 1000UL)   // 15 minutes per animation
 
 // How many variants each animation cycles through on the right button
-static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1 };
+static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1 };
 
 // ===================================================================
 //  VIEW ORDER  -  this is the scheduler: reorder the views here.
@@ -126,15 +130,18 @@ static const int variantCount[NUM_ANIMS] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 //             5 Mosaic  6 SphereColor  7 Scan    8 Eye    9 Tunnel
 //            10 World   11 Hypno  12 ColorText  13 Skull
 //            14 Rainbow 15 Blue   16 Curtain  17 Escher
+//            18 Pond
 //  The order below is Yuri's, chosen on 23/10/2026: the Escher cube
-//  opens the cycle and the skull closes it.
+//  opens the cycle and the skull closes it. On 25/10/2026 the paper pond
+//  took Morph's place, then swapped with the curtain eye so that no two
+//  eyes follow each other.
 //  Edit this list to change the running order. Entries may be removed
 //  or repeated; the cycle just walks the list and wraps around.
-//  Off the list, and kept in the file: 2 Waves, 3 Buddha, 4 Swarm,
+//  Off the list, and kept in the file: 0 Morph, 2 Waves, 3 Buddha, 4 Swarm,
 //  6 SphereColor, 9 Tunnel, 12 ColorText. Each comes back by adding its id below -
 //  nothing else to restore.
 // ===================================================================
-static int viewOrder[] = { 17, 14, 10, 11, 5, 15, 1, 8, 16, 0, 7, 13 };
+static int viewOrder[] = { 17, 14, 10, 11, 5, 15, 1, 8, 18, 16, 7, 13 };
 static const int N_VIEWS = sizeof(viewOrder) / sizeof(viewOrder[0]);
 
 int   slot = 0;               // index into viewOrder = the current view
@@ -3459,6 +3466,284 @@ static void animEscherCube(float t) {
 }
 
 // ======================================================================
+// 18 - PAPER POND (ported from PaperPond/)
+//      A pond in cut paper: stacked sheets, pale blue at the rim down to
+//      night blue at the bottom, whose edges sway slowly. Two red paper
+//      fish swim above it and their shadows slide from sheet to sheet.
+//      Every cut is a level line of one field - an ellipse plus four
+//      drifting waves - so the sheets always stay nested, each swaying a
+//      little differently from its neighbour. Field / slope gives the
+//      distance to the edge of the sheet above: that is the contact
+//      shadow. The same distance read a few pixels towards the light (top
+//      left) is the cast shadow.
+//      Each fish follows a closed curve - a circle plus a loop turning
+//      twice as fast the other way - so it slows down and darts off but
+//      never stops. The body bends with the curve and the tail beats
+//      harder as it speeds up. Its shadow sits further off on the deep
+//      sheets, which are further away.
+//      The standalone sketch keeps the whole field grid (89 KB); here a
+//      ring of 16 grid rows is enough, since a corner only reads its own
+//      row, its neighbours and the row PD_SHADOW_LEN up towards the light.
+//      The ring lives in viewScratch, the buffer Celestial Scan and World
+//      Ring already share: it is refilled every frame, and they rebuild
+//      theirs in initAnim(), so the pond costs the OTA heap nothing.
+//      Corner samples averaged per pixel, as the Escher cube, whose row
+//      buffers and colour helpers it shares (the two never run together).
+//      The sine table and the clock phase are the Yeux helpers. No variant.
+// ======================================================================
+// ---- the pond
+#define PD_LAYERS     6        // paper sheets, the outer one included (3 to 12)
+#define PD_RX         69.0f    // half-width of the pond, pixels
+#define PD_RY         73.0f    // half-height of the pond, pixels
+#define PD_EDGE       0.00f    // where the first cut falls (0: on the ellipse)
+#define PD_CORE       0.75f    // where the last cut falls (1: at the centre)
+#define PD_WOBBLE     0.120f   // how much the edges sway
+#define PD_DRIFT_MS   10000    // the edges go through one full drift in this many ms
+// ---- the light
+#define PD_CURVE      0.60f    // spread of the blues: under 1, it darkens sooner
+#define PD_SHADOW     0.62f    // strength of the shadows between sheets
+#define PD_SHADOW_LEN 5        // length of the cast shadow, pixels (whole number)
+#define PD_SOFT       3.0f     // shadow blur, pixels
+#define PD_RIM        0.10f    // light edge on the cut facing the light
+#define PD_GRAIN      0.040f   // paper grain
+// ---- the fish
+#define FI_COUNT      2        // 1 or 2
+#define FI_LEN        37.0f    // length of a fish, pixels
+#define FI_WIDTH      0.170f   // half-width of the body, in lengths
+#define FI_HUE        6.0f     // hue, degrees (0 red, 30 orange, 60 yellow)
+#define FI_RANGE      0.50f    // how far from the centre they swim, as a fraction of the pond
+#define FI_WANDER     0.30f    // 0: a circle, 0.45: tight loops
+#define FI_SWIM_MS    26000    // one full lap, ms
+#define FI_WAG        0.130f   // tail beat, in lengths
+#define FI_WAG_MS     800      // one beat, ms
+#define FI_LIFT       6.5f     // height above the water: shadow offset, pixels
+#define FI_SHADOW     0.45f    // strength of the fish shadows
+#define FI_FOLD       0.16f    // the fold along the back: one half lit, the other in shade
+
+// The light comes from the top left; shadows fall to the bottom right.
+#define PD_LX        -0.6f
+#define PD_LY        -0.8f
+#define PD_M          10                     // grid margin, to read the shadow off screen
+#define PD_GW         (CU_NS + 2 * PD_M)
+#define PD_RING       16                     // grid rows kept, a power of two
+static_assert((int)(-PD_LY * PD_SHADOW_LEN + 0.5f) + 2 < PD_RING && (int)(-PD_LX * PD_SHADOW_LEN + 0.5f) < PD_M,
+              "PD_SHADOW_LEN is too long for the grid ring");
+static_assert(PD_LAYERS >= 3 && PD_LAYERS <= 12, "PD_LAYERS must stay between 3 and 12");
+static_assert(PD_RING * PD_GW * (int)sizeof(float) <= VIEW_SCRATCH_BYTES, "the grid ring does not fit in viewScratch");
+static float (*const pdRing)[PD_GW] = (float (*)[PD_GW])viewScratch;   // the pond field, one per corner
+
+// The paper grain: a fixed noise, 0..255
+static inline uint32_t pdGrain(uint32_t i, uint32_t j) {
+  uint32_t h = i * 374761393u + j * 668265263u;
+  h = (h ^ (h >> 13)) * 1274126177u;
+  return (h ^ (h >> 16)) & 255;
+}
+
+// The field: 1 at the centre, 0 on the ellipse, plus four drifting waves.
+// x, y: pixels from the middle, y down. ph: phase of the drift.
+static float pdField(float x, float y, float ph) {
+  float ex = x * (1.0f / PD_RX), ey = y * (1.0f / PD_RY);
+  float n = 0.50f * yxSinTurn( 0.0110f * x + 0.0068f * y + ph        + 0.13f)
+          + 0.35f * yxSinTurn(-0.0072f * x + 0.0125f * y - ph        + 0.57f)
+          + 0.18f * yxSinTurn( 0.0190f * x - 0.0150f * y + 2.0f * ph + 0.31f)
+          + 0.06f * yxSinTurn( 0.0310f * x + 0.0270f * y - ph        + 0.82f);
+  return 1.0f - sqrtf(ex * ex + ey * ey) + PD_WOBBLE * n;
+}
+
+static float pdLv[12];                       // level of the cut that opens each sheet
+static float pdCol[12][3];                   // colour of each sheet
+
+static inline int pdLayer(float f) {
+  if (f < PD_EDGE) return 0;
+  int k = 1 + (int)((f - PD_EDGE) * (PD_LAYERS - 2) / (PD_CORE - PD_EDGE));
+  return k > PD_LAYERS - 1 ? PD_LAYERS - 1 : k;
+}
+
+struct PdFish {
+  float x, y;                                // centre, pixels from the middle
+  float c, s;                                // heading
+  float k;                                   // curvature of the path, per pixel
+  float wag, wph;                            // tail beat: amplitude, phase
+};
+static PdFish pdFish[2];
+static float fiCol[3];
+
+// Distance (rough, pixels) from the point to fish n, negative inside.
+// *bent: the sideways position once the body is straightened out. (The
+// fish goes by its number: the Arduino IDE declares functions before
+// the struct.)
+static float fiDist(int n, float x, float y, float *bent) {
+  const PdFish &F = pdFish[n];
+  float dx = x - F.x, dy = y - F.y;
+  float u = dx * F.c + dy * F.s, v = -dx * F.s + dy * F.c;
+  float s = u * (1.0f / FI_LEN);             // 0.5: the nose, -0.5: the tip of the tail
+  float w = 0.5f - s;                        // 0 at the nose, 1 at the tail
+  // The spine follows the curve of the path, and the tail beats
+  v -= F.k * u * u * 0.5f + F.wag * FI_LEN * w * w * yxSinTurn(F.wph - 0.9f * w);
+  *bent = v;
+  const float W = FI_WIDTH * FI_LEN;
+  float av = fabsf(v), d;
+  if (s > -0.22f) {
+    // The body: round at the front, tapering towards the tail
+    float x1 = (s - 0.14f) * (1.0f / 0.36f);
+    float q = 1.0f - x1 * x1;
+    if (q < 0) q = 0;
+    float hw = x1 > 0 ? W * sqrtf(q) * (1.0f - 0.15f * x1) : W * (0.28f + 0.72f * q);
+    d = av - hw;
+  } else {
+    // The tail: it fans out, split down the middle
+    float t = (-0.22f - s) * (1.0f / 0.28f);
+    float hw = W * (0.28f + 0.8f * t * sqrtf(t > 0 ? t : 0));
+    d = av - hw;
+    float notch = (t - 1.0f + 0.5f * (1.0f - av / hw)) * (0.17f * FI_LEN);
+    if (notch > d) d = notch;
+  }
+  float e = (s - 0.5f) * FI_LEN;  if (e > d) d = e;
+  e = (-0.5f - s) * FI_LEN;       if (e > d) d = e;
+  return d;
+}
+
+// Where fish n is at this moment
+static void fiPose(int n, uint32_t clock) {
+  const float A = 1.0f, B = FI_WANDER;
+  float dir = n ? -1.0f : 1.0f;              // the second one swims the other way round
+  uint32_t period = n ? FI_SWIM_MS * 13 / 10 : FI_SWIM_MS;
+  float th = dir * yxPhase(clock + n * 7919u, period) * 2.0f * PI + n * 2.4f;
+  float ph = n * 1.7f;
+  float sx = FI_RANGE * PD_RX / (A + B), sy = FI_RANGE * PD_RY / (A + B);
+  float c1 = cosf(th), s1 = sinf(th), c2 = cosf(-2.0f * th + ph), s2 = sinf(-2.0f * th + ph);
+  // Position, velocity, acceleration (per radian of path)
+  float px = A * c1 + B * c2, py = A * s1 + B * s2;
+  float vx = -A * s1 + 2.0f * B * s2, vy = A * c1 - 2.0f * B * c2;
+  float ax = -A * c1 - 4.0f * B * c2, ay = -A * s1 - 4.0f * B * s2;
+  float sp = sqrtf(vx * vx + vy * vy);       // between A - 2B and A + 2B
+  vx *= dir * sx; vy *= dir * sy; ax *= sx; ay *= sy;
+  float vl = sqrtf(vx * vx + vy * vy) + 1e-6f;
+  PdFish &F = pdFish[n];
+  F.x = px * sx; F.y = py * sy;
+  F.c = vx / vl; F.s = vy / vl;
+  float k = (vx * ay - vy * ax) / (vl * vl * vl);
+  F.k = 0.6f * cuClamp(k, -1.0f / (0.8f * FI_LEN), 1.0f / (0.8f * FI_LEN));
+  // The tail beats harder as it speeds up
+  F.wag = FI_WAG * (0.45f + 0.55f * sp / (A + 2.0f * B));
+  F.wph = yxPhase(clock + n * 311u, FI_WAG_MS);
+}
+
+static void animPaperPond(float t) {
+  const uint32_t clock = (uint32_t)(t * 1000.0f);
+  const float ph = yxPhase(clock, PD_DRIFT_MS);
+
+  // The sheets: one level and one blue each, pale at the rim to night blue
+  const float out[3] = { 172, 189, 207 }, deep[3] = { 14, 30, 52 };
+  for (int k = 0; k < PD_LAYERS; k++) {
+    pdLv[k] = k ? PD_EDGE + (k - 1) * (PD_CORE - PD_EDGE) / (PD_LAYERS - 2) : -1e9f;
+    float tt = powf((float)k / (PD_LAYERS - 1), PD_CURVE);
+    for (int c = 0; c < 3; c++) pdCol[k][c] = out[c] + (deep[c] - out[c]) * tt;
+  }
+
+  // The fish, and their red
+  for (int n = 0; n < FI_COUNT; n++) fiPose(n, clock);
+  float h = fmodf(FI_HUE, 360.0f) * (1.0f / 60.0f);
+  if (h < 0) h += 6.0f;
+  int hi = (int)h;
+  float hf = h - hi, pure[3];
+  switch (hi) {
+    case 0:  pure[0] = 1;      pure[1] = hf;     pure[2] = 0;      break;
+    case 1:  pure[0] = 1 - hf; pure[1] = 1;      pure[2] = 0;      break;
+    case 2:  pure[0] = 0;      pure[1] = 1;      pure[2] = hf;     break;
+    case 3:  pure[0] = 0;      pure[1] = 1 - hf; pure[2] = 1;      break;
+    case 4:  pure[0] = hf;     pure[1] = 0;      pure[2] = 1;      break;
+    default: pure[0] = 1;      pure[1] = 0;      pure[2] = 1 - hf; break;
+  }
+  for (int c = 0; c < 3; c++) fiCol[c] = (0.18f + 0.82f * pure[c]) * 225.0f;
+
+  const int ox = (int)lroundf(-PD_LX * PD_SHADOW_LEN), oy = (int)lroundf(-PD_LY * PD_SHADOW_LEN);
+  const float reach = 0.65f * FI_LEN + 2.0f;
+
+  int filled = 0;                            // grid rows computed so far
+  uint32_t *prev = cuRowA, *cur = cuRowB;
+  for (int j = 0; j <= SCREEN_H; j++) {
+    // Fill the ring up to the row below this one
+    for (; filled <= j + PD_M + 1; filled++) {
+      float *row = pdRing[filled & (PD_RING - 1)];
+      for (int i = 0; i < PD_GW; i++) row[i] = pdField(i - PD_M - SCREEN_W * 0.5f, filled - PD_M - SCREEN_H * 0.5f, ph);
+    }
+    const float *rUp = pdRing[(j + PD_M - 1) & (PD_RING - 1)], *rMid = pdRing[(j + PD_M) & (PD_RING - 1)];
+    const float *rDn = pdRing[(j + PD_M + 1) & (PD_RING - 1)], *rSh = pdRing[(j + PD_M - oy) & (PD_RING - 1)];
+    float y = j - SCREEN_H * 0.5f;
+    for (int i = 0; i <= SCREEN_W; i++) {
+      float x = i - SCREEN_W * 0.5f;
+      int ix = i + PD_M;
+      float f = rMid[ix];
+      float gx = (rMid[ix + 1] - rMid[ix - 1]) * 0.5f, gy = (rDn[ix] - rUp[ix]) * 0.5f;
+      float g = sqrtf(gx * gx + gy * gy) + 1e-4f;
+      int k = pdLayer(f);
+      float r = pdCol[k][0], gg = pdCol[k][1], b = pdCol[k][2];
+
+      float shade = 1.0f + 0.06f * (PD_LX * x + PD_LY * y) * (1.0f / 64.0f);
+      if (k > 0) {
+        // Contact shadow at the foot of the sheet above, and cast shadow
+        float du = (f - pdLv[k]) / g;
+        float ds = (rSh[ix - ox] - pdLv[k]) / g;
+        float sh = cuClamp(0.5f - ds / PD_SOFT, 0, 1);
+        sh = sh * sh * (3.0f - 2.0f * sh);
+        float ao = cuClamp(1.0f - du * 0.3f, 0, 1);
+        shade *= 1.0f - PD_SHADOW * (0.75f * sh + 0.35f * ao * ao);
+      }
+      float rim = 0;
+      if (k < PD_LAYERS - 1) {
+        // The cut edge of the paper: light on the side facing the light
+        float din = (pdLv[k + 1] - f) / g;
+        if (din < 1.5f) rim = PD_RIM * 255.0f * (-(PD_LX * gx + PD_LY * gy) / g) * (1.0f - din * (1.0f / 1.5f));
+      }
+      r = r * shade + rim; gg = gg * shade + rim; b = b * shade + rim;
+
+      // The fish shadows, further off on the deep sheets
+      if (FI_COUNT > 0) {
+        float lift = FI_LIFT * (0.7f + 0.6f * k / (PD_LAYERS - 1));
+        float sx = x + PD_LX * lift, sy = y + PD_LY * lift, soft = 1.0f + 0.35f * lift, best = 0;
+        for (int n = 0; n < FI_COUNT; n++) {
+          if (fabsf(sx - pdFish[n].x) > reach + soft || fabsf(sy - pdFish[n].y) > reach + soft) continue;
+          float bent;
+          float sh = cuClamp(0.5f - fiDist(n, sx, sy, &bent) / soft, 0, 1);
+          if (sh > best) best = sh;
+        }
+        best = best * best * (3.0f - 2.0f * best);
+        float m = 1.0f - FI_SHADOW * best;
+        r *= m; gg *= m; b *= m;
+      }
+
+      // The fish, the second one under the first
+      for (int n = FI_COUNT - 1; n >= 0; n--) {
+        const PdFish &F = pdFish[n];
+        if (fabsf(x - F.x) > reach || fabsf(y - F.y) > reach) continue;
+        float bent;
+        float d = fiDist(n, x, y, &bent);
+        float a = cuClamp(0.5f - d, 0, 1);
+        if (a <= 0) continue;
+        // Two facets either side of the back: the one facing the light is lighter
+        float side = cuClamp(bent * 1.25f, -1, 1);
+        float lit = (-F.s * PD_LX + F.c * PD_LY);
+        float fs = 1.0f + FI_FOLD * side * lit;
+        fs *= 1.0f - 0.18f * cuClamp(1.0f + d * (1.0f / 1.2f), 0, 1);   // the edge, a little darker
+        r += (fiCol[0] * fs - r) * a;
+        gg += (fiCol[1] * fs - gg) * a;
+        b += (fiCol[2] * fs - b) * a;
+      }
+
+      float gr = 1.0f + PD_GRAIN * ((pdGrain(i, j) * (2.0f / 255.0f)) - 1.0f);
+      cur[i] = cuRgb888(r * gr, gg * gr, b * gr);
+    }
+    if (j > 0) {
+      uint16_t *o = fb + (j - 1) * SCREEN_W;
+      for (int i = 0; i < SCREEN_W; i++) o[i] = cuAvg4(prev[i], prev[i + 1], cur[i], cur[i + 1]);
+    }
+    uint32_t *tmp = prev; prev = cur; cur = tmp;
+  }
+  tft.pushImage(0, 0, SCREEN_W, SCREEN_H, fb);
+}
+
+// ======================================================================
 // framework
 // ======================================================================
 
@@ -3552,6 +3837,7 @@ void loop() {
     case 15: animBlueEye(animTime);  break;
     case 16: animCurtainEye(animTime); break;
     case 17: animEscherCube(animTime); break;
+    case 18: animPaperPond(animTime); break;
   }
 
   if (now - animStart >= ANIM_MS) {

@@ -1,0 +1,568 @@
+<title>PaperPond</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Une colonne : l'écran du T-QT en tête, les curseurs dessous, puis les
+     #define à recopier. Même habit que EscherCube/preview.html. */
+  :root {
+    --paper:  #FAFAF7;
+    --ink:    #121214;
+    --ink-2:  #4A4A50;
+    --rule:   #121214;
+    --screen-bg: #000000;
+    --accent: #C8372D;   /* le rouge des poissons */
+
+    --step--1: 0.78rem;
+    --step-0:  1rem;
+    --step-1:  1.2rem;
+    --step-3:  2.1rem;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bitmap: "Silkscreen", "IBM Plex Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #E8675C;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0D0F; --ink: #F2F2EE; --ink-2: #9A9AA2; --rule: #F2F2EE; --accent: #E8675C;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    margin: 0;
+    padding-block: clamp(1.25rem, 4vw, 3rem) 5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: clamp(2.5rem, 6vw, 4rem); }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+  .eyebrow { font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-family: var(--bitmap); font-weight: 400; font-size: clamp(1.7rem, 7vw, var(--step-3)); line-height: 1.1; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; max-width: 36rem; color: var(--ink-2); }
+
+  .stage { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+  .device { padding: 14px; background: var(--screen-bg); border: 1px solid var(--rule); line-height: 0; max-width: 100%; }
+  .device canvas { display: block; width: min(384px, 78vw); max-width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+  /* Sur grand écran : le rendu reste collé à gauche pendant qu'on fait
+     défiler les curseurs à droite. */
+  @media (min-width: 60rem) {
+    .wrap { max-width: 82rem; display: grid; grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); column-gap: clamp(2rem, 4vw, 3.5rem); row-gap: 2.5rem; align-items: start; }
+    .wrap > header { grid-column: 1 / -1; }
+    .wrap > .stage { grid-column: 1; grid-row: 2 / span 4; position: sticky; top: 1.25rem; }
+    .wrap > :not(header):not(.stage) { grid-column: 2; }
+    .device canvas { width: min(384px, 100%); }
+  }
+  .caption { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+
+  .panel { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); overflow: hidden; }
+  .field { display: flex; flex-direction: column; gap: 0.55rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--rule); margin-bottom: -1px; min-width: 0; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-family: var(--mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; }
+  .field .label b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-2); text-transform: none; letter-spacing: 0; }
+  .hint { font-size: var(--step--1); color: var(--ink-2); line-height: 1.45; }
+
+  .seg { display: flex; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: var(--step--1); padding: 0.4rem 0.3rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-right-width: 0; cursor: pointer; }
+  .seg button:last-child { border-right-width: 1px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible, input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 1px; background: var(--rule); margin: 0.7rem 0; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border: 0; }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--accent); border: 0; border-radius: 0; }
+
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  h2 { font-family: var(--bitmap); font-weight: 400; font-size: var(--step-1); margin: 0; padding-bottom: 0.6rem; border-bottom: 1px solid var(--rule); letter-spacing: 0.02em; }
+  section p { margin: 0; max-width: 40rem; }
+
+  pre { font-family: var(--mono); font-size: var(--step--1); line-height: 1.7; border: 1px solid var(--rule); padding: 1rem 1.1rem; margin: 0; overflow-x: auto; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  td:first-child { font-family: var(--mono); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+  footer { font-size: var(--step--1); color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">LilyGo T-QT Pro · ESP32-S3 · 128 × 128 · Papier découpé</div>
+    <h1>PaperPond</h1>
+    <p>Une mare en papier découpé : des couches empilées, du bleu pâle au bord
+       jusqu'au bleu nuit au fond, dont les bords ondulent doucement. Un ou deux
+       poissons rouges en papier nagent au-dessus, et leur ombre glisse d'une
+       couche à l'autre.</p>
+  </header>
+
+  <div class="stage">
+    <div class="device"><canvas id="screen" width="128" height="128" aria-label="Aperçu de l'animation PaperPond"></canvas></div>
+    <div class="caption" id="fpsline">—</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="field">
+      <div class="label"><span>Lecture</span></div>
+      <div class="seg" role="group" aria-label="Lecture">
+        <button id="btnPlay" aria-pressed="true">Marche</button>
+        <button id="btnStep">Image suivante</button>
+      </div>
+      <div class="hint">L'aperçu vise 40 images/s, comme le croquis.</div>
+    </div>
+    <div class="field">
+      <div class="label"><span>Vitesse de l'aperçu</span></div>
+      <div class="seg" role="group" aria-label="Vitesse de l'aperçu">
+        <button data-speed="1" aria-pressed="true">× 1</button>
+        <button data-speed="4" aria-pressed="false">× 4</button>
+      </div>
+      <div class="hint">L'accéléré sert à voir tout le trajet des poissons et la dérive des bords. Il n'existe que dans l'aperçu.</div>
+    </div>
+    <!-- les curseurs sont ajoutés ici par le script, un par constante -->
+  </div>
+
+  <section>
+    <h2>Les réglages du moment</h2>
+    <p>Les valeurs des curseurs, sous la forme qu'elles ont dans le croquis.
+       Copie-les et colle-les-moi : je les reporte dans le croquis.</p>
+    <pre id="settings"></pre>
+    <div class="seg" style="max-width: 28rem">
+      <button id="btnCopy">Copier les réglages</button>
+      <button id="btnReset">Revenir au croquis</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ce qu'il faut savoir</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Point</th><th>Où ça en est</th></tr></thead>
+        <tbody>
+          <tr><td>Les couches</td><td>Toutes les découpes sont les lignes de niveau d'un seul champ : une ellipse plus quatre ondes qui dérivent. Deux lignes de niveau ne se croisent jamais : les couches restent emboîtées, et chacune ondule un peu autrement que sa voisine. Trop d'ondulation, et des îlots se détachent.</td></tr>
+          <tr><td>Les ombres</td><td>La distance au bord de la couche du dessus donne l'ombre de contact ; la même distance lue quelques pixels vers la lumière (en haut à gauche) donne l'ombre portée. Celle des poissons est plus décalée sur les couches profondes, plus loin d'eux.</td></tr>
+          <tr><td>Les poissons</td><td>Chacun suit une courbe fermée, un cercle plus une boucle qui tourne deux fois plus vite à l'envers : ils ralentissent et repartent, sans jamais s'arrêter. Le second tourne dans l'autre sens, un peu plus lentement, et passe sous le premier quand ils se croisent. Le corps se plie dans les virages, la queue bat plus fort quand ils accélèrent.</td></tr>
+          <tr><td>Vitesse</td><td>Estimée, pas mesurée : 21 000 évaluations du champ par image, puis quelques lectures par coin de pixel ; les poissons ne coûtent que dans leur cadre. Autour de <b>30 à 40 images/s</b>. Seul un flash le confirmera.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Ces valeurs sont celles du croquis <code>PaperPond/PaperPond.ino</code>.
+    Les curseurs partent de là.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- core:start ---------------------------------------------
+  // Le même code que PaperPond.ino, ligne pour ligne. P porte les #define.
+  const SCREEN_W = 128, SCREEN_H = 128, NS = SCREEN_W + 1;
+  const LX = -0.6, LY = -0.8;
+  const PD_M = 10, PD_GW = NS + 2 * PD_M;
+  const pdF = new Float32Array(PD_GW * PD_GW);
+
+  const sinLut = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) sinLut[i] = Math.sin(i * (2 * Math.PI / 1024));
+  const sinTurn = (turns) => sinLut[((turns * 1024) | 0) & 1023];
+  const clockPhase = (clock, periodMs) => (clock % periodMs) / periodMs;
+  const clampf = (v, a, b) => v < a ? a : (v > b ? b : v);
+  const rgb888 = (r, g, b) => ((clampf(r, 0, 255) | 0) << 16) | ((clampf(g, 0, 255) | 0) << 8) | (clampf(b, 0, 255) | 0);
+  function avg4(a, b, c, d) {
+    const r = ((a >> 16) + (b >> 16) + (c >> 16) + (d >> 16)) >> 2;
+    const g = (((a >> 8) & 255) + ((b >> 8) & 255) + ((c >> 8) & 255) + ((d >> 8) & 255)) >> 2;
+    const bl = ((a & 255) + (b & 255) + (c & 255) + (d & 255)) >> 2;
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (bl >> 3);
+  }
+  function grain(i, j) {
+    let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263)) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+    return (h ^ (h >>> 16)) & 255;
+  }
+
+  // La mare
+  function pdField(x, y, ph, P) {
+    const ex = x * (1 / P.PD_RX), ey = y * (1 / P.PD_RY);
+    const n = 0.50 * sinTurn( 0.0110 * x + 0.0068 * y + ph     + 0.13)
+            + 0.35 * sinTurn(-0.0072 * x + 0.0125 * y - ph     + 0.57)
+            + 0.18 * sinTurn( 0.0190 * x - 0.0150 * y + 2 * ph + 0.31)
+            + 0.06 * sinTurn( 0.0310 * x + 0.0270 * y - ph     + 0.82);
+    return 1 - Math.sqrt(ex * ex + ey * ey) + P.PD_WOBBLE * n;
+  }
+  const pdLv = new Float32Array(12), pdCol = [...Array(12)].map(() => [0, 0, 0]);
+  function pdLayer(f, P) {
+    if (f < P.PD_EDGE) return 0;
+    const k = 1 + (((f - P.PD_EDGE) * (P.PD_LAYERS - 2) / (P.PD_CORE - P.PD_EDGE)) | 0);
+    return k > P.PD_LAYERS - 1 ? P.PD_LAYERS - 1 : k;
+  }
+
+  // Les poissons
+  const fish = [0, 1].map(() => ({ x: 0, y: 0, c: 1, s: 0, k: 0, wag: 0, wph: 0 }));
+  const fiCol = [0, 0, 0];
+  let bent = 0;
+  function fiDist(F, x, y, P) {
+    const dx = x - F.x, dy = y - F.y;
+    const u = dx * F.c + dy * F.s;
+    let v = -dx * F.s + dy * F.c;
+    const L = P.FI_LEN, s = u * (1 / L), w = 0.5 - s;
+    v -= F.k * u * u * 0.5 + F.wag * L * w * w * sinTurn(F.wph - 0.9 * w);
+    bent = v;
+    const W = P.FI_WIDTH * L;
+    const av = Math.abs(v);
+    let d;
+    if (s > -0.22) {
+      const x1 = (s - 0.14) * (1 / 0.36);
+      let q = 1 - x1 * x1;
+      if (q < 0) q = 0;
+      const hw = x1 > 0 ? W * Math.sqrt(q) * (1 - 0.15 * x1) : W * (0.28 + 0.72 * q);
+      d = av - hw;
+    } else {
+      const t = (-0.22 - s) * (1 / 0.28);
+      const hw = W * (0.28 + 0.8 * t * Math.sqrt(t > 0 ? t : 0));
+      d = av - hw;
+      const notch = (t - 1 + 0.5 * (1 - av / hw)) * (0.17 * L);
+      if (notch > d) d = notch;
+    }
+    let e = (s - 0.5) * L;  if (e > d) d = e;
+    e = (-0.5 - s) * L;     if (e > d) d = e;
+    return d;
+  }
+  function fiPose(n, clock, P) {
+    const A = 1, B = P.FI_WANDER;
+    const dir = n ? -1 : 1;
+    const period = n ? Math.floor(P.FI_SWIM_MS * 13 / 10) : P.FI_SWIM_MS;
+    const th = dir * clockPhase(clock + n * 7919, period) * 2 * Math.PI + n * 2.4;
+    const ph = n * 1.7;
+    const sx = P.FI_RANGE * P.PD_RX / (A + B), sy = P.FI_RANGE * P.PD_RY / (A + B);
+    const c1 = Math.cos(th), s1 = Math.sin(th), c2 = Math.cos(-2 * th + ph), s2 = Math.sin(-2 * th + ph);
+    const px = A * c1 + B * c2, py = A * s1 + B * s2;
+    let vx = -A * s1 + 2 * B * s2, vy = A * c1 - 2 * B * c2;
+    let ax = -A * c1 - 4 * B * c2, ay = -A * s1 - 4 * B * s2;
+    const sp = Math.sqrt(vx * vx + vy * vy);
+    vx *= dir * sx; vy *= dir * sy; ax *= sx; ay *= sy;
+    const vl = Math.sqrt(vx * vx + vy * vy) + 1e-6;
+    const F = fish[n];
+    F.x = px * sx; F.y = py * sy;
+    F.c = vx / vl; F.s = vy / vl;
+    const k = (vx * ay - vy * ax) / (vl * vl * vl);
+    F.k = 0.6 * clampf(k, -1 / (0.8 * P.FI_LEN), 1 / (0.8 * P.FI_LEN));
+    F.wag = P.FI_WAG * (0.45 + 0.55 * sp / (A + 2 * B));
+    F.wph = clockPhase(clock + n * 311, P.FI_WAG_MS);
+  }
+
+  const rowA = new Uint32Array(NS), rowB = new Uint32Array(NS);
+
+  function drawPond(fb, clock, P) {
+    const ph = clockPhase(clock, P.PD_DRIFT_MS);
+    for (let j = 0; j < PD_GW; j++)
+      for (let i = 0; i < PD_GW; i++)
+        pdF[j * PD_GW + i] = pdField(i - PD_M - SCREEN_W * 0.5, j - PD_M - SCREEN_H * 0.5, ph, P);
+
+    const out = [172, 189, 207], deep = [14, 30, 52];
+    for (let k = 0; k < P.PD_LAYERS; k++) {
+      pdLv[k] = k ? P.PD_EDGE + (k - 1) * (P.PD_CORE - P.PD_EDGE) / (P.PD_LAYERS - 2) : -1e9;
+      const t = Math.pow(k / (P.PD_LAYERS - 1), P.PD_CURVE);
+      for (let c = 0; c < 3; c++) pdCol[k][c] = out[c] + (deep[c] - out[c]) * t;
+    }
+
+    for (let n = 0; n < P.FI_COUNT; n++) fiPose(n, clock, P);
+    let h = (P.FI_HUE % 360) * (1 / 60);
+    if (h < 0) h += 6;
+    const hi = h | 0, hf = h - hi;
+    const pure = [[1, hf, 0], [1 - hf, 1, 0], [0, 1, hf], [0, 1 - hf, 1], [hf, 0, 1], [1, 0, 1 - hf]][hi < 5 ? hi : 5];
+    for (let c = 0; c < 3; c++) fiCol[c] = (0.18 + 0.82 * pure[c]) * 225;
+
+    const ox = Math.round(-LX * P.PD_SHADOW_LEN), oy = Math.round(-LY * P.PD_SHADOW_LEN);
+    const reach = 0.65 * P.FI_LEN + 2;
+    const NL = P.PD_LAYERS;
+
+    let prev = rowA, cur = rowB;
+    for (let j = 0; j <= SCREEN_H; j++) {
+      const y = j - SCREEN_H * 0.5;
+      for (let i = 0; i <= SCREEN_W; i++) {
+        const x = i - SCREEN_W * 0.5;
+        const idx = (j + PD_M) * PD_GW + i + PD_M;
+        const f = pdF[idx];
+        const gx = (pdF[idx + 1] - pdF[idx - 1]) * 0.5, gy = (pdF[idx + PD_GW] - pdF[idx - PD_GW]) * 0.5;
+        const g = Math.sqrt(gx * gx + gy * gy) + 1e-4;
+        const k = pdLayer(f, P);
+        let r = pdCol[k][0], gg = pdCol[k][1], b = pdCol[k][2];
+
+        let shade = 1 + 0.06 * (LX * x + LY * y) * (1 / 64);
+        if (k > 0) {
+          const du = (f - pdLv[k]) / g;
+          const ds = (pdF[idx - oy * PD_GW - ox] - pdLv[k]) / g;
+          let sh = clampf(0.5 - ds / P.PD_SOFT, 0, 1);
+          sh = sh * sh * (3 - 2 * sh);
+          const ao = clampf(1 - du * 0.3, 0, 1);
+          shade *= 1 - P.PD_SHADOW * (0.75 * sh + 0.35 * ao * ao);
+        }
+        let rim = 0;
+        if (k < NL - 1) {
+          const din = (pdLv[k + 1] - f) / g;
+          if (din < 1.5) rim = P.PD_RIM * 255 * (-(LX * gx + LY * gy) / g) * (1 - din * (1 / 1.5));
+        }
+        r = r * shade + rim; gg = gg * shade + rim; b = b * shade + rim;
+
+        if (P.FI_COUNT > 0) {
+          const lift = P.FI_LIFT * (0.7 + 0.6 * k / (NL - 1));
+          const sx = x + LX * lift, sy = y + LY * lift, soft = 1 + 0.35 * lift;
+          let best = 0;
+          for (let n = 0; n < P.FI_COUNT; n++) {
+            if (Math.abs(sx - fish[n].x) > reach + soft || Math.abs(sy - fish[n].y) > reach + soft) continue;
+            const sh = clampf(0.5 - fiDist(fish[n], sx, sy, P) / soft, 0, 1);
+            if (sh > best) best = sh;
+          }
+          best = best * best * (3 - 2 * best);
+          const m = 1 - P.FI_SHADOW * best;
+          r *= m; gg *= m; b *= m;
+        }
+
+        for (let n = P.FI_COUNT - 1; n >= 0; n--) {
+          const F = fish[n];
+          if (Math.abs(x - F.x) > reach || Math.abs(y - F.y) > reach) continue;
+          const d = fiDist(F, x, y, P);
+          const a = clampf(0.5 - d, 0, 1);
+          if (a <= 0) continue;
+          const side = clampf(bent * 1.25, -1, 1);
+          const lit = -F.s * LX + F.c * LY;
+          let fs = 1 + P.FI_FOLD * side * lit;
+          fs *= 1 - 0.18 * clampf(1 + d * (1 / 1.2), 0, 1);
+          r += (fiCol[0] * fs - r) * a;
+          gg += (fiCol[1] * fs - gg) * a;
+          b += (fiCol[2] * fs - b) * a;
+        }
+
+        const gr = 1 + P.PD_GRAIN * ((grain(i, j) * (2 / 255)) - 1);
+        cur[i] = rgb888(r * gr, gg * gr, b * gr);
+      }
+      if (j > 0) {
+        const o = (j - 1) * SCREEN_W;
+        for (let i = 0; i < SCREEN_W; i++) fb[o + i] = avg4(prev[i], prev[i + 1], cur[i], cur[i + 1]);
+      }
+      const t = prev; prev = cur; cur = t;
+    }
+  }
+  // ---- core:end -----------------------------------------------
+
+  const DEFAULTS = {
+    PD_LAYERS: 6, PD_RX: 69, PD_RY: 73, PD_EDGE: 0, PD_CORE: 0.75, PD_WOBBLE: 0.12, PD_DRIFT_MS: 10000,
+    PD_CURVE: 0.6, PD_SHADOW: 0.62, PD_SHADOW_LEN: 5, PD_SOFT: 3, PD_RIM: 0.1, PD_GRAIN: 0.04,
+    FI_COUNT: 2, FI_LEN: 37, FI_WIDTH: 0.17, FI_HUE: 6, FI_RANGE: 0.5, FI_WANDER: 0.3, FI_SWIM_MS: 26000,
+    FI_WAG: 0.13, FI_WAG_MS: 800, FI_LIFT: 6.5, FI_SHADOW: 0.45, FI_FOLD: 0.16,
+  };
+  const CONTROLS = [
+    { key: "PD_LAYERS", label: "Couches", min: 3, max: 12, step: 1, fix: 0, int: true,
+      show: (v) => v + " feuilles", hint: "Nombre de feuilles de papier, la plus pâle comprise." },
+    { key: "PD_RX", label: "Largeur de la mare", min: 40, max: 100, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + " px", hint: "Demi-largeur de l'ellipse. Au-delà de 64, le bord sort de l'écran sur les côtés." },
+    { key: "PD_RY", label: "Hauteur de la mare", min: 40, max: 100, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + " px", hint: "Demi-hauteur. Un peu plus que la largeur, la mare s'allonge comme sur l'image." },
+    { key: "PD_EDGE", label: "Première découpe", min: 0, max: 0.4, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Où tombe la première découpe, depuis le bord de l'ellipse. Plus haut, plus de papier pâle autour." },
+    { key: "PD_CORE", label: "Dernière découpe", min: 0.5, max: 0.98, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Où tombe la découpe du fond. Près de 100 %, le trou le plus profond devient minuscule." },
+    { key: "PD_WOBBLE", label: "Ondulation", min: 0, max: 0.2, step: 0.005, fix: 3,
+      show: (v) => (v * 100).toFixed(1) + " %", hint: "Les bords ondulent de tant. Trop, et des îlots de papier se détachent." },
+    { key: "PD_DRIFT_MS", label: "Lenteur des bords", min: 5000, max: 90000, step: 1000, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(0) + " s", hint: "Temps d'un cycle complet de la dérive. Plus long, plus calme." },
+    { key: "PD_CURVE", label: "Répartition des bleus", min: 0.4, max: 2, step: 0.05, fix: 2,
+      show: (v) => v.toFixed(2), hint: "Sous 1, on fonce vite dès les premières couches ; au-dessus, le bleu nuit est gardé pour le fond." },
+    { key: "PD_SHADOW", label: "Ombres des couches", min: 0, max: 0.9, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Force de l'ombre qu'une feuille jette sur la suivante." },
+    { key: "PD_SHADOW_LEN", label: "Longueur de l'ombre", min: 0, max: 9, step: 1, fix: 0, int: true,
+      show: (v) => v + " px", hint: "Décalage de l'ombre portée vers le bas à droite : l'épaisseur apparente entre deux feuilles." },
+    { key: "PD_SOFT", label: "Flou de l'ombre", min: 0.5, max: 8, step: 0.1, fix: 1,
+      show: (v) => v.toFixed(1) + " px", hint: "Largeur du dégradé au bord de l'ombre." },
+    { key: "PD_RIM", label: "Tranche éclairée", min: 0, max: 0.3, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Un liseré clair sur le bord des feuilles qui fait face à la lumière." },
+    { key: "PD_GRAIN", label: "Grain du papier", min: 0, max: 0.12, step: 0.005, fix: 3,
+      show: (v) => (v * 100).toFixed(1) + " %", hint: "Un bruit fixe, comme la fibre d'un papier." },
+    { key: "FI_COUNT", label: "Poissons", min: 0, max: 2, step: 1, fix: 0, int: true,
+      show: (v) => v ? v + (v > 1 ? " poissons" : " poisson") : "aucun", hint: "Un ou deux. À zéro, la mare seule." },
+    { key: "FI_LEN", label: "Taille des poissons", min: 14, max: 50, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + " px", hint: "Du nez au bout de la queue." },
+    { key: "FI_WIDTH", label: "Corpulence", min: 0.1, max: 0.26, step: 0.005, fix: 3,
+      show: (v) => (v * 200).toFixed(0) + " % de la longueur", hint: "Largeur du corps à son plus large." },
+    { key: "FI_HUE", label: "Couleur des poissons", min: 0, max: 60, step: 1, fix: 1,
+      show: (v) => v.toFixed(0) + "°", hint: "0 rouge, 15 rouge orangé, 30 orange, 45 doré comme sur l'image." },
+    { key: "FI_RANGE", label: "Étendue du trajet", min: 0.1, max: 0.8, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Jusqu'où les poissons s'éloignent du centre, en fraction de la mare." },
+    { key: "FI_WANDER", label: "Boucles", min: 0, max: 0.45, step: 0.01, fix: 2,
+      show: (v) => v.toFixed(2), hint: "0 : ils tournent en rond. Plus haut, le trajet fait des boucles et ils ralentissent davantage dans les virages." },
+    { key: "FI_SWIM_MS", label: "Durée d'un tour", min: 8000, max: 80000, step: 1000, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(0) + " s", hint: "Le temps d'un tour complet. Le second poisson met 30 % de plus." },
+    { key: "FI_WAG", label: "Battement de queue", min: 0, max: 0.2, step: 0.005, fix: 3,
+      show: (v) => (v * 100).toFixed(1) + " %", hint: "Amplitude du battement, en fraction de la longueur. Plus fort quand ils accélèrent." },
+    { key: "FI_WAG_MS", label: "Rythme du battement", min: 300, max: 2500, step: 50, fix: 0, int: true,
+      show: (v) => (v / 1000).toFixed(2) + " s", hint: "Durée d'un battement." },
+    { key: "FI_LIFT", label: "Hauteur des poissons", min: 0, max: 10, step: 0.5, fix: 1,
+      show: (v) => v.toFixed(1) + " px", hint: "Plus ils sont haut, plus leur ombre s'écarte et s'adoucit." },
+    { key: "FI_SHADOW", label: "Ombre des poissons", min: 0, max: 0.9, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Force de l'ombre des poissons sur la mare." },
+    { key: "FI_FOLD", label: "Pli du dos", min: 0, max: 0.4, step: 0.01, fix: 2,
+      show: (v) => (v * 100).toFixed(0) + " %", hint: "Une moitié du poisson éclairée, l'autre à l'ombre, comme un papier plié." },
+  ];
+  const COMMENT = {
+    PD_LAYERS: "couches de papier, fond compris (3 à 12)",
+    PD_RX: "demi-largeur de la mare, pixels",
+    PD_RY: "demi-hauteur de la mare, pixels",
+    PD_EDGE: "place de la première découpe (0 : au bord de l'ellipse)",
+    PD_CORE: "place de la dernière découpe (1 : au centre)",
+    PD_WOBBLE: "ondulation des bords",
+    PD_DRIFT_MS: "les bords font un cycle complet en tant de ms",
+    PD_CURVE: "répartition des bleus : sous 1, on fonce plus vite",
+    PD_SHADOW: "force des ombres entre les couches",
+    PD_SHADOW_LEN: "longueur de l'ombre portée, pixels (entier)",
+    PD_SOFT: "flou de l'ombre, pixels",
+    PD_RIM: "liseré clair sur la tranche éclairée",
+    PD_GRAIN: "grain du papier",
+    FI_COUNT: "1 ou 2",
+    FI_LEN: "longueur d'un poisson, pixels",
+    FI_WIDTH: "demi-largeur du corps, en longueurs",
+    FI_HUE: "teinte, degrés (0 rouge, 30 orange, 60 jaune)",
+    FI_RANGE: "ils s'éloignent du centre de tant, en fraction de la mare",
+    FI_WANDER: "0 : un cercle, 0.45 : des boucles serrées",
+    FI_SWIM_MS: "un tour complet, ms",
+    FI_WAG: "battement de queue, en longueurs",
+    FI_WAG_MS: "un battement, ms",
+    FI_LIFT: "hauteur au-dessus de l'eau : décalage de l'ombre, pixels",
+    FI_SHADOW: "force de l'ombre des poissons",
+    FI_FOLD: "le pli du dos : une moitié éclairée, l'autre à l'ombre",
+  };
+  const draw = drawPond;
+
+  // ============================================================
+  //  Page
+  // ============================================================
+  const P = { ...DEFAULTS };
+  const st = { t: 0, playing: true, speed: 1 };
+  const $ = (id) => document.getElementById(id);
+
+  const cv = $("screen"), ctx = cv.getContext("2d");
+  const img = ctx.createImageData(SCREEN_W, SCREEN_H);
+  const rgba = new Uint32Array(img.data.buffer);
+  const fb = new Uint16Array(SCREEN_W * SCREEN_H);
+
+  function paint() {
+    draw(fb, Math.floor(st.t * 1000), P);
+    for (let i = 0; i < fb.length; i++) {
+      const c = fb[i];
+      const r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+      rgba[i] = 0xFF000000 | (((b << 3) | (b >> 2)) << 16) | (((g << 2) | (g >> 4)) << 8) | ((r << 3) | (r >> 2));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  const literal = (c, v) => c.int ? String(Math.round(v)) : v.toFixed(c.fix) + "f";
+  function settings() {
+    const kw = Math.max(...CONTROLS.map((c) => c.key.length)) + 1;
+    const w = Math.max(...CONTROLS.map((c) => literal(c, P[c.key]).length));
+    $("settings").textContent = CONTROLS.map((c) =>
+      "#define " + c.key.padEnd(kw) + literal(c, P[c.key]).padEnd(w + 2) + "// " + COMMENT[c.key]).join("\n");
+  }
+
+  const panel = $("panel");
+  for (const c of CONTROLS) {
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML =
+      '<div class="label"><span>' + c.label + '</span><b id="v_' + c.key + '"></b></div>' +
+      '<input type="range" id="r_' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" aria-label="' + c.label + '">' +
+      '<div class="hint"><code>' + c.key + '</code> · ' + c.hint + '</div>';
+    panel.appendChild(f);
+    const r = f.querySelector("input");
+    r.addEventListener("input", () => { P[c.key] = +r.value; sync(); paint(); });
+  }
+  function sync() {
+    for (const c of CONTROLS) {
+      $("r_" + c.key).value = P[c.key];
+      $("v_" + c.key).textContent = c.show(P[c.key]);
+    }
+    settings();
+  }
+
+  // Le bloc part dans le presse-papiers avec le nom de l'animation en tête.
+  // Si le navigateur refuse, on sélectionne le bloc : il reste ⌘C.
+  let copyT = 0;
+  function copyLabel(msg) {
+    $("btnCopy").textContent = msg;
+    clearTimeout(copyT);
+    copyT = setTimeout(() => { $("btnCopy").textContent = "Copier les réglages"; }, 2500);
+  }
+  $("btnCopy").addEventListener("click", () => {
+    const text = "// " + document.title + "\n" + $("settings").textContent;
+    const selectBlock = () => {
+      const r = document.createRange();
+      r.selectNodeContents($("settings"));
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+      copyLabel("Sélectionné : ⌘C pour copier");
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => copyLabel("Copié"), selectBlock);
+    } catch (e) { selectBlock(); }
+  });
+  $("btnReset").addEventListener("click", () => { Object.assign(P, DEFAULTS); sync(); paint(); });
+  $("btnPlay").addEventListener("click", (e) => {
+    st.playing = !st.playing;
+    e.target.textContent = st.playing ? "Marche" : "Pause";
+    e.target.setAttribute("aria-pressed", String(st.playing));
+  });
+  $("btnStep").addEventListener("click", () => { st.t += 1 / 40; paint(); });
+  document.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
+    st.speed = +b.dataset.speed;
+    document.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+
+  // ---- boucle ----------------------------------------------------
+  let prev = performance.now(), acc = 0, n = 0, msAcc = 0;
+  const FRAME = 1 / 40;
+  function tick(now) {
+    const real = Math.min((now - prev) / 1000, 0.25);
+    prev = now;
+    if (st.playing) {
+      acc += real;
+      if (acc >= FRAME) {
+        const k = Math.min(Math.floor(acc / FRAME), 3);
+        acc -= k * FRAME;
+        st.t += k * FRAME * st.speed;
+        const t0 = performance.now();
+        paint();
+        msAcc += performance.now() - t0;
+        if (++n >= 20) {
+          $("fpsline").textContent = (msAcc / n).toFixed(1) + " ms par image dans le navigateur  ·  t = " + st.t.toFixed(1) + " s";
+          n = 0; msAcc = 0;
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    st.playing = false;
+    $("btnPlay").textContent = "Pause";
+    $("btnPlay").setAttribute("aria-pressed", "false");
+  }
+  sync();
+  paint();
+  requestAnimationFrame(tick);
+})();
+</script>

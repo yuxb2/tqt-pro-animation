@@ -9,9 +9,11 @@ Le croquis publié est `CyberCycle/` : douze animations qui tournent 15 minutes
 chacune, **le cube d'Escher en tête** et `Skull` en dernier. Bouton gauche =
 animation suivante, bouton droit = variante.
 
-> Six autres attendent hors liste, sans être supprimées du fichier. Il suffit
+> Sept autres attendent hors liste, sans être supprimées du fichier. Il suffit
 > d'ajouter leur numéro à `viewOrder` pour qu'elles repassent comme les autres :
 >
+> - **`Morph`** (vue 0), le solide filaire qui tourne. Il a laissé sa place
+>   à la mare en papier (vue 18).
 > - **`Waves`** (vue 2).
 > - **`Buddha`** (vue 3), **`Swarm`** (vue 4) et **`Tunnel`** (vue 9), le
 >   couloir rouge. Ils ont laissé leur place aux trois yeux des Yeux
@@ -154,8 +156,8 @@ Tout est dans `CyberCycle/CyberCycle.ino` :
 Les autres dossiers (`RgbCube/`, `GlyphRain/`, …) sont des croquis séparés qui
 ne partent pas en OTA. Seul `CyberCycle/` est publié.
 
-Huit d'entre eux ont leur propre README, et sont **aussi** repris dans
-`CyberCycle/` (vues 7, 10, 11, 13, 14, 15, 16 et 17) :
+Neuf d'entre eux ont leur propre README, et sont **aussi** repris dans
+`CyberCycle/` (vues 7, 10, 11, 13, 14, 15, 16, 17 et 18) :
 
 - `WorldRing/` — globe filaire avec continents et une phrase qui fait le tour
   de l'écran. Le texte se change sur une ligne, la taille des lettres s'ajuste
@@ -180,6 +182,10 @@ Huit d'entre eux ont leur propre README, et sont **aussi** repris dans
   centre, la barre du fond passe devant celle de devant. Il ne fait jamais de
   tour complet : de face ou pile sur l'arête, l'illusion se défait. Vue
   **sans variante**, constantes en `CU_`.
+- `PaperPond/` — une mare en papier découpé dont les feuilles ondulent, et
+  deux poissons rouges en papier plié qui nagent au-dessus, leur ombre
+  glissant d'une feuille à l'autre. Vue **sans variante**, constantes en
+  `PD_` et `FI_`.
 
 ### Comment on fabrique une nouvelle animation
 
@@ -210,7 +216,7 @@ Huit d'entre eux ont leur propre README, et sont **aussi** repris dans
 
 `SkullTurn/preview.html` est l'exemple de référence.
 
-Une animation retirée du tour n'est pas forcément gardée : `Waves`,
+Une animation retirée du tour n'est pas forcément gardée : `Morph`, `Waves`,
 `Buddha`, `Swarm`, `Tunnel` et `Color text message` restent dans le fichier
 parce qu'on peut vouloir les revoir, mais un essai qu'on abandonne se supprime
 pour de bon — il reste dans l'historique Git, c'est suffisant.
